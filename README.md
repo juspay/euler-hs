@@ -11,7 +11,7 @@ Framework is successfully used in production in Juspay and shows impressive resu
 * [Framework features](#Framework-features)
 * [Business logic code sample](#The-Flow-monad)
 * [Important note on forked external libs](#Important-note-on-forked-external-libs)
-  - [hedis library for Redis](#hedis-library for Redis)
+  - [hedis library for Redis](#hedis-library-for-Redis)
   - [beam-mysql library for MySql](#beam-mysql-library-for-MySql)
   - [beam](#beam)
 * [EulerHS application architecture](#EulerHS-application-architecture)
