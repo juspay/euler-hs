@@ -1,0 +1,315 @@
+cabal-version: 3.0
+name:          euler-hs
+version:       2.5.0.0
+synopsis:      The Flow framework for web backends
+license:       Apache-2.0
+author:        Juspay Technologies Pvt Ltd
+maintainer:    opensource@juspay.in
+copyright:     (C) Juspay Technologies Pvt Ltd 2019-2021
+category:      Euler
+build-type:    Simple
+tested-with:   GHC ==8.8.3
+
+common common-lang
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints
+
+  build-depends:      base >=4.13 && <5
+  default-extensions:
+    NoImplicitPrelude
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DuplicateRecordFields
+    ExplicitNamespaces
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedLabels
+    OverloadedStrings
+    PatternSynonyms
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    ViewPatterns
+
+  default-language:   Haskell2010
+
+library
+  import:          common-lang
+  exposed-modules:
+    EulerHS.Extra.AltValidation
+    EulerHS.Extra.Test
+    EulerHS.Extra.Validation
+    EulerHS.Interpreters
+    EulerHS.Language
+    EulerHS.Prelude
+    EulerHS.Runtime
+    EulerHS.Types
+
+  other-modules:
+    EulerHS.Core.Api
+    EulerHS.Core.Interpreters
+    EulerHS.Core.KVDB.Entries
+    EulerHS.Core.KVDB.Interpreter
+    EulerHS.Core.KVDB.Language
+    EulerHS.Core.Language
+    EulerHS.Core.Logger.Entries
+    EulerHS.Core.Logger.Impl.TinyLogger
+    EulerHS.Core.Logger.Interpreter
+    EulerHS.Core.Logger.Language
+    EulerHS.Core.Playback.Entries
+    EulerHS.Core.Playback.Machine
+    EulerHS.Core.PubSub.Entries
+    EulerHS.Core.PubSub.Interpreter
+    EulerHS.Core.PubSub.Language
+    EulerHS.Core.Runtime
+    EulerHS.Core.SqlDB.Interpreter
+    EulerHS.Core.SqlDB.Language
+    EulerHS.Core.Types
+    EulerHS.Core.Types.BinaryString
+    EulerHS.Core.Types.Common
+    EulerHS.Core.Types.DB
+    EulerHS.Core.Types.Exceptions
+    EulerHS.Core.Types.HttpAPI
+    EulerHS.Core.Types.KVDB
+    EulerHS.Core.Types.Logger
+    EulerHS.Core.Types.MySQL
+    EulerHS.Core.Types.Options
+    EulerHS.Core.Types.Playback
+    EulerHS.Core.Types.Postgres
+    EulerHS.Core.Types.Serializable
+    EulerHS.Extra.Aeson
+    EulerHS.Extra.Language
+    EulerHS.Framework.Flow.Interpreter
+    EulerHS.Framework.Flow.Language
+    EulerHS.Framework.Interpreters
+    EulerHS.Framework.Language
+    EulerHS.Framework.Runtime
+
+  build-depends:
+    , aeson
+    , base64-bytestring
+    , base64-bytestring-type
+    , beam-core               ^>=0.9.0.0
+    , beam-mysql              ^>=1.2.1.0
+    , beam-postgres           ^>=0.5.0.0
+    , beam-sqlite             ^>=0.5.0.0
+    , binary
+    , bytestring
+    , case-insensitive
+    , cereal
+    , connection
+    , containers
+    , data-default
+    , dlist
+    , exceptions
+    , extra
+    , fmt
+    , free
+    , generic-lens
+    , hedis                   ^>=0.12.8.1
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , lens
+    , mysql-haskell           ^>=0.8.4.2
+    , newtype-generics
+    , postgresql-simple
+    , process
+    , profunctors
+    , resource-pool
+    , servant-client
+    , servant-client-core
+    -- , servant-client          ^>=0.18.1
+    -- , servant-client-core     ^>=0.18.1
+    , sqlite-simple
+    , stm
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , tls
+    , transformers
+    , unagi-chan
+    , universum
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , validation
+    , vector
+
+  hs-source-dirs:  src
+
+test-suite language
+  import:         common-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:
+    EulerHS.Core.Api
+    EulerHS.Core.Interpreters
+    EulerHS.Core.KVDB.Entries
+    EulerHS.Core.KVDB.Interpreter
+    EulerHS.Core.KVDB.Language
+    EulerHS.Core.Language
+    EulerHS.Core.Logger.Entries
+    EulerHS.Core.Logger.Impl.TinyLogger
+    EulerHS.Core.Logger.Interpreter
+    EulerHS.Core.Logger.Language
+    EulerHS.Core.Playback.Entries
+    EulerHS.Core.Playback.Machine
+    EulerHS.Core.PubSub.Entries
+    EulerHS.Core.PubSub.Interpreter
+    EulerHS.Core.PubSub.Language
+    EulerHS.Core.Runtime
+    EulerHS.Core.SqlDB.Interpreter
+    EulerHS.Core.SqlDB.Language
+    EulerHS.Core.Types
+    EulerHS.Core.Types.BinaryString
+    EulerHS.Core.Types.Common
+    EulerHS.Core.Types.DB
+    EulerHS.Core.Types.Exceptions
+    EulerHS.Core.Types.HttpAPI
+    EulerHS.Core.Types.KVDB
+    EulerHS.Core.Types.Logger
+    EulerHS.Core.Types.MySQL
+    EulerHS.Core.Types.Options
+    EulerHS.Core.Types.Playback
+    EulerHS.Core.Types.Postgres
+    EulerHS.Core.Types.Serializable
+    EulerHS.Extra.Aeson
+    EulerHS.Extra.Language
+    EulerHS.Framework.Flow.Interpreter
+    EulerHS.Framework.Flow.Language
+    EulerHS.Framework.Interpreters
+    EulerHS.Framework.Language
+    EulerHS.Framework.Runtime
+    EulerHS.Interpreters
+    EulerHS.Language
+    EulerHS.Prelude
+    EulerHS.Runtime
+    EulerHS.TestData.API.Client
+    EulerHS.TestData.Scenarios.Scenario1
+    EulerHS.TestData.Types
+    EulerHS.Testing.Flow.Interpreter
+    EulerHS.Testing.Types
+    EulerHS.Tests.Framework.ArtSpec
+    EulerHS.Tests.Framework.Common
+    EulerHS.Tests.Framework.DBSetup
+    EulerHS.Tests.Framework.FlowSpec
+    EulerHS.Tests.Framework.KVDBArtSpec
+    EulerHS.Tests.Framework.PubSubSpec
+    EulerHS.Tests.Framework.SQLArtSpec
+    EulerHS.Types
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , base64-bytestring
+    , base64-bytestring-type
+    , beam-core               ^>=0.9.0.0
+    , beam-mysql              ^>=1.2.1.0
+    , beam-postgres           ^>=0.5.0.0
+    , beam-sqlite             ^>=0.5.0.0
+    , binary
+    , bytestring
+    , case-insensitive
+    , cereal
+    , connection
+    , containers
+    , data-default
+    , dlist
+    , euler-hs
+    , exceptions
+    , extra
+    , fmt
+    , free
+    , generic-lens
+    , hedis                   ^>=0.12.8.1
+    , hspec
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , lens
+    , mysql-haskell           ^>=0.8.4.2
+    , newtype-generics
+    , postgresql-simple
+    , process
+    , profunctors
+    , QuickCheck
+    , resource-pool
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-mock
+    , servant-server
+    -- , servant               ^>=0.18.1
+    -- , servant-client        ^>=0.18.1
+    -- , servant-client-core   ^>=0.18.1
+    -- , servant-mock          ^>=0.8.7
+    -- , servant-server        ^>=0.18.1
+    , sqlite-simple
+    , stm
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , tls
+    , transformers
+    , unagi-chan
+    , universum
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , vector
+    , warp
+
+  hs-source-dirs: test src
+
+test-suite db
+  import:         common-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:
+    KVDB.KVDBSpec
+    SQLDB.TestData.Connections
+    SQLDB.TestData.Scenarios.MySQL
+    SQLDB.TestData.Scenarios.Postgres
+    SQLDB.TestData.Scenarios.SQLite
+    SQLDB.TestData.Types
+    SQLDB.Tests.MySQLDBSpec
+    SQLDB.Tests.PostgresDBSpec
+    SQLDB.Tests.QueryExamplesSpec
+    SQLDB.Tests.SQLiteDBSpec
+
+  build-depends:
+    , aeson
+    , beam-core
+    , beam-mysql
+    , beam-postgres
+    , beam-sqlite
+    , bytestring
+    , euler-hs
+    , hspec
+    , mysql-haskell
+    , postgresql-simple
+    , process
+    , servant
+    , servant-mock
+    , time
+
+  hs-source-dirs: testDB

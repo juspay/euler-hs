@@ -1,0 +1,51 @@
+resolver: lts-15.15
+
+packages:
+  - .
+
+extra-deps:
+  - git: https://github.com/juspay/hedis
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
+  - git: https://github.com/juspay/beam-mysql
+    commit: eab93370b30f90e26e39e4d99f51db052aebc992
+  - git: https://github.com/juspay/mysql-haskell
+    commit: 788022d65538db422b02ecc0be138b862d2e5cee
+  - git: https://github.com/juspay/bytestring-lexing
+    commit: 0a46db1139011736687cb50bbd3877d223bcb737
+  - git: https://github.com/juspay/beam
+    commit: 185ff060e63ab0b8a72775ee2742621dd6fefeb1
+    subdirs:
+      - beam-core
+      - beam-migrate
+      - beam-sqlite
+      - beam-postgres
+
+  # Needed for beam
+  - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
+  - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
+  - haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
+  - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
+  - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
+  - direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
+  # Needed for beam-mysql
+  - tcp-streams-1.0.1.1@sha256:35e9ecfa515797052f8c3c01834d2daebd5e93f3152c7fc98b32652bf6f0c052,2329
+  - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
+  - mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
+  - record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
+# MySQL
+# MacOS:
+# Problem: MacOS build failure
+# >   Configuring mysql-0.1.7...
+# >   setup: Missing dependencies on foreign libraries:
+# >   * Missing (or bad) C libraries: ssl, crypto
+# Possible solution:
+# https://github.com/depressed-pho/HsOpenSSL/issues/41
+# TODO: how to make it portable?
+extra-include-dirs:
+  - /usr/local/opt/openssl/include
+extra-lib-dirs:
+  - /usr/local/opt/openssl/lib
+
+# Linux:
+# sudo apt install mysql-client
+# sudo apt-get install libmysqlclient-dev
