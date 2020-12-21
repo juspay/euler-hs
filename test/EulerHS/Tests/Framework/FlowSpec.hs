@@ -190,9 +190,11 @@ spec mbLoggerCfg = do
                   then countTo100
                   else return count
 
-            forkFlow "counter1" $ runUntracedIO $ void countTo100
-            forkFlow "counter2" $ runUntracedIO $ void countTo100
+            threadId1 <- forkFlow' "counter1" $ runUntracedIO $ void countTo100
+            threadId2 <- forkFlow' "counter2" $ runUntracedIO $ void countTo100
             count <- runUntracedIO $ atomically $ readTVar countVar
+            void $ await Nothing threadId1
+            void $ await Nothing threadId2
             return count
 
           result `shouldBe` 100
