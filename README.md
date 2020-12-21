@@ -104,8 +104,6 @@ to fix it. You might want to be aware of these Juspay-specific fixes. If they ar
 
 The [beam-mysql](https://github.com/juspay/beam-mysql) is rewritten almost completely. The original version doesn't have protection from SQL injections, and also is written with some internal problems. The updated version fixes that.
 
-Additionally, the fork is working around the fact that we can receive `UTF-8` encoded content, but have to munge it into `Latin-1` (due to internal's Juspay practice). This is the default behaviour of our fork, which euler-hs thus silently inherits whenever it deals with `MySQL` databases (or indeed, `MariaDB` databases, since the back-end of `beam-mysql` works for both).
-
 This behaviour as a __silent__, irreplaceable default may not be desirable for general purposes. Will be fixed in the next releases of the forked `beam-mysql` library.
 
 ### beam
