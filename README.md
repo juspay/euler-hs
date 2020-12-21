@@ -26,7 +26,7 @@ Framework is successfully used in production in Juspay and shows impressive resu
 * [Building the framework](#Building-the-framework)
 * [Testing the framework](#Testing-the-framework)
 * [EulerHS tutorials and template projects](#EulerHS-tutorials-and-template-projects)
-* [Background-materials](#Background-materials)
+* [Background materials](#Background-materials)
 
 ## Framework features
 
