@@ -135,7 +135,7 @@ Layers of the typical web backend application with Servant:
 
 * EulerHS language (the `Flow` monad and its derivables)
   - Provides an abstracted, purified set of eDSLs which are free from implementation details
-  - Helps to organize buisiness logic code
+  - Helps to organize business logic code
 * Domain model (ADT types mostly)
   - Represents types and functions directly related to the domain
 * DB model (`beam`-powered schema)
@@ -407,7 +407,7 @@ For more info on the SQL DB subsystem usage, see tutorials and background materi
 
 The framework exposes a type class `MonadFlow` with instances for `Flow`, `ReaderT r Flow`, `StateT s Flow`, `WriterT w Flow`, `ExceptT e Flow` and some other transformers. This makes it possible to write your `Flow` scenarios with the `mtl` style.
 
-Let's see how the scenario `searhByDate` will look like:
+Let's see how the scenario `searchByDate` will look like:
 
 ```haskell
 searchByDate
