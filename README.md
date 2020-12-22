@@ -93,8 +93,7 @@ testScenario1 = do
 ## Important note on forked external libs
 
 Juspay made forks of several libraries to fix their problems and to support
-specific cases. We didn't meant to release these features, and we have a plan
-to fix it. You might want to be aware of these Juspay-specific fixes. If they are not suitable for your needs, it might need to avoid them till EulerHS v3.0.
+specific cases. You might want to be aware of these Juspay-specific fixes. If they are not suitable for your needs, it might need to avoid them till EulerHS v3.0.
 
 ### hedis library for Redis
 
