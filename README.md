@@ -151,7 +151,7 @@ Layers of the typical web backend application with Servant:
   - Handles exceptions, threads, ART system
   - Uses `FlowRuntime`
 
-Checkout [Background-materials](#Background materials) to know more about this layering.
+Checkout [Background materials](#Background-materials) to know more about this layering.
 
 ## Flow monad sample usages
 
