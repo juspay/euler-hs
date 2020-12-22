@@ -230,7 +230,7 @@ delOption :: (OptionEntity k v) => k -> Flow ()
 Options work as a shared concurrent yet mutable state,
 so be careful to not produce data races.
 
-Avoid using it as an operational state or your app, it's better to use `StateT` on top of the `Flow`. See [State handling](#State-handling) for more info.
+Avoid using it as an operational state of your app, it's better to use `StateT` on top of the `Flow`. See [State handling](#State-handling) for more info.
 
 ```haskell
 data TestIntKey = TestIntKey
