@@ -461,8 +461,8 @@ Notice that in the current framework there are no methods for killing a forked f
 ```haskell
 myFlow :: L.Flow (Maybe String, Maybe String)
 myFlow = do
-  awaitable1 <- l.forkFlow' "Child Flow 1" (L.runIO (threadDelay 10000) >> pure "1")
-  awaitable2 <- l.forkFlow' "Child Flow 2" (L.runIO (threadDelay 100000) >> pure "2")
+  awaitable1 <- L.forkFlow' "Child Flow 1" (L.runIO (threadDelay 10000) >> pure "1")
+  awaitable2 <- L.forkFlow' "Child Flow 2" (L.runIO (threadDelay 100000) >> pure "2")
   mbRes1 <- L.await Nothing awaitable1
   mbRes2 <- L.await Nothing awaitable2
   pure (mbRes1, mbRes2)
