@@ -261,7 +261,7 @@ This subsystem supports several SQL backends:
 - Postgres
 - SQLite
 
-The goal was to provide a unified interface for all those backends, so that different projects could write a relatively similar code.
+The goal was to provide a unified interface for all those backends, so that different projects could have a relatively similar code.
 
 Unfortunately, there are two drawbacks here.
 
