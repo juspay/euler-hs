@@ -103,8 +103,6 @@ specific cases. You might want to be aware of these Juspay-specific fixes. If th
 
 The [beam-mysql](https://github.com/juspay/beam-mysql) is rewritten almost completely. The original version doesn't have protection from SQL injections, and also is written with some internal problems. The updated version fixes that.
 
-This behaviour as a __silent__, irreplaceable default may not be desirable for general purposes. Will be fixed in the next releases of the forked `beam-mysql` library.
-
 ### beam
 
 We made several minor improvements of the original `beam` library in [our fork](https://github.com/juspay/beam). These changes do not have anything Juspay-specific, but yet to be pushed to the upstream.
