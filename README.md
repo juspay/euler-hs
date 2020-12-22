@@ -160,10 +160,10 @@ Checkout [Background materials](#Background-materials) to know more about this l
 Framework provides logging mechanism out-of-the-box. It provides 4 logging functions:
 
 ```haskell
-logInfo    :: Show tag => tag -> T.Message -> Flow ()
-logError   :: Show tag => tag -> T.Message -> Flow ()
-logDebug   :: Show tag => tag -> T.Message -> Flow ()
-logWarning :: Show tag => tag -> T.Message -> Flow ()
+logInfo    :: Show tag => tag -> Message -> Flow ()
+logError   :: Show tag => tag -> Message -> Flow ()
+logDebug   :: Show tag => tag -> Message -> Flow ()
+logWarning :: Show tag => tag -> Message -> Flow ()
 ```
 
 Usage is quite simple.
