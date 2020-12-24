@@ -4,7 +4,7 @@
 
 The framework represents a safe layer with its own philosophy of exception safety, so you don't need to think about those difficult Haskell questions.
 
-The framework also provides two testing mechanisms: integration testing facilities and automatic whitebox testing mechanism. The code you'll be writing will be simple and testable. See the related materials for more info.
+The framework also offers two testing mechanisms: integration testing facilities and automatic whitebox testing mechanism. The code you'll be writing will be simple and testable. See the related materials for more info.
 
 Framework is successfully used in production in Juspay and shows impressive results.
 
