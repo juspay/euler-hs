@@ -1,6 +1,6 @@
 # Juspay's EulerHS Framework
 
-***EulerHS*** is a free monadic framework for easy building backend and console applications in Haskell. This framework provides you with the most important subsystems already integrated, such as SQL DBs, logging, KV DBs and other.
+***EulerHS*** is a free monadic framework for easy building concurrent backend and console applications in Haskell. This framework provides you with the most important subsystems already integrated, such as SQL DBs, logging, KV DBs and other.
 
 The framework represents a safe layer with its own philosophy of exception safety, so you don't need to think about those difficult Haskell questions.
 
