@@ -111,25 +111,22 @@ There are two methods for running a query script:
 - `runDB`          - run a query without a transaction;
 - `runTransaction` - treat the `SqlDB` monad as a transactional scope and run it within a transaction.
 
-### Connection pool management
+### Connectivity & pool management
 
-`beam` does not provide a connection management but the framework supports several ways of handling connections and pools. See [README](./README.md) for more info.
+`beam` does not provide a connectivity management but the framework supports several ways of handling connections and pools. See [README](./README.md) for more info.
 
-There is currently a possible issue with connection pools on Postgres which is under investigation.
+### beam-mysql rework
 
-### MySQL specific
+We paid a certain cost to fix some issues we think we've encountered in the `beam-mysql` library. We've reworked the library in [our fork](https://github.com/juspay/beam-mysql). We'll attempt to upstream some of the changes, though `beam-mysql` repo remains in the account of original author of beam.
 
-There are several problems with the `beam-mysql` backend described below which are currently fixed or mitigated in [our fork](https://github.com/juspay/beam-mysql) of `beam-mysql`.
+### MySQL lacks INSERT RETURNING
 
-We'll attempt to upstream some of the changes, though `beam-mysql` repo remains in the account of original author of beam.
+As MySQL does not support `INSERT ... RETURNING`, the `beam-mysql` library does not provide `insertReturning*` functions. We've added this functionality [in our fork](https://github.com/juspay/beam-mysql) although the implementation is not efficient and should be considered a workaround.
 
-#### Insert returning
+The framework also provides a specific method `insertRowReturningMySQL` which can insert a single row and return its value together with the generated autoincrement id column. Should be used with care.
 
-As MySQL does not support `INSERT ... RETURNING` `beam-mysql` does not implement `insertReturning*` functions.
-The `juspay/beam-mysql` adds an `INSERT RETURNING` emulation and support for these, but uses a temporary table.
+### More value conversions enabled in beam-mysql
 
-So we added an additional function `insertRowReturningMySQL` which can insert a single row and return its value together with the generated autoincrement id column.
-
-#### Changes to parsing
-
-`juspay/beam-mysql` also allows to parse `Blob` as `Text`; `Bit(1)` as `Bool`.
+[In our fork](https://github.com/juspay/beam-mysql), additional parsers are implemented:
+* `Blob` as `Text`
+* `Bit(1)` as `Bool`
