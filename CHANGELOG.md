@@ -1,5 +1,8 @@
 # Changelog for euler-hs
 
+## [2.5.0.1] - 2020-03-26
+  - New documentation
+
 ## [2.5.0.0] - 2020-12-01
 * EulerHS is prepared for open sourcing.
   - New documentation
@@ -24,7 +27,7 @@
   - Added untyped HTTP calls to `Flow`.
   - Lots of various fixes not listed here.
   - Added `insertRowReturningMySql` function which does not use temporary tables internally.
-  - Beware of `SqlBool` vs `Bool` when writing `beam` queries, and other gotchas: [see BEAM_NOTES.md](BEAM_NOTES.md),
+  - Beware of `SqlBool` vs `Bool` when writing `beam` queries, and other gotchas: [see BEAM-NOTES.md](BEAM-NOTES.md),
     read this if you use database at all via `euler-hs`.
     Some of this can have a critical effect on performance, especially on MySQL.
 

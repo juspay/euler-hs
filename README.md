@@ -103,9 +103,13 @@ specific cases. You might want to be aware of these Juspay-specific fixes. If th
 
 The [beam-mysql](https://github.com/juspay/beam-mysql) is rewritten almost completely. The original version doesn't have protection from SQL injections, and also is written with some internal problems. The updated version fixes that.
 
+More info on `beam` usage can be found in [BEAM-NOTES](./BEAM-NOTES.md).
+
 ### beam
 
 We made several minor improvements of the original `beam` library in [our fork](https://github.com/juspay/beam). These changes do not have anything Juspay-specific, but yet to be pushed to the upstream.
+
+More info on `beam` usage can be found in [BEAM-NOTES](./BEAM-NOTES.md).
 
 ## EulerHS application architecture
 
@@ -184,7 +188,9 @@ The logging subsystem can be configured on the start of the application. You sho
 - File logger (a special flag in `LoggerConfig`). Will flush logs into a file (the action is not immediate).
 - Console logger (a special flag in `LoggerConfig`). Will show logs in console.
 
-You can also choose should your file and console logger be sync or async (a special flag in `LoggerConfig`). N.B. Async logger is not properly tested yet, it can have performance implications.
+You can also choose should your file and console logger be sync or async (a special flag in `LoggerConfig`).
+
+N.B. Async logger is not properly tested yet, it can have performance implications.
 
 ```haskell
 import qualified EulerHS.Types as T
@@ -267,7 +273,7 @@ Unfortunately, there are two drawbacks here.
 
 - We had to fix many problems in `beam` and related libraries, but were unable to push all the changes to the upstream. This especially true regarding `beam-mysql` that we had to rewrite almost completely.
 - Framework cannot provide things specific to any SQL backend. Only a common subset of features.
-- `beam` itself is a sophisticated library, and its usage is quite difficult. You may want to consult with our [cheatsheet](./BEAM_NOTES.md) on `beam` usage.
+- `beam` itself is a sophisticated library, and its usage is quite difficult. You may want to consult with our [cheatsheet](./BEAM-NOTES.md) on `beam` usage.
 
 There is a test suite [QueryExamplesSpec](testDB/SQLDB/Tests/QueryExamplesSpec.hs) with `beam` samples,
 check it out to get an idea on how to compose queries and how it's all integrated with the `Flow` monad.

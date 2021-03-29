@@ -5,7 +5,7 @@ packages:
 
 extra-deps:
   - git: https://github.com/juspay/hedis
-    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
   - git: https://github.com/juspay/beam-mysql
     commit: eab93370b30f90e26e39e4d99f51db052aebc992
   - git: https://github.com/juspay/mysql-haskell
@@ -32,6 +32,7 @@ extra-deps:
   - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
   - mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
   - record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
+
 # MySQL
 # MacOS:
 # Problem: MacOS build failure
