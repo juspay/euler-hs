@@ -104,7 +104,7 @@ withEmptyDB act = withFlowRuntime Nothing (\rt -> do
 
 -- Prepare record log and test returns
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connectOrFail cfg = L.getOrInitSqlConn cfg >>= \case
+connectOrFail cfg = L.getOrInitSqlConnection cfg >>= \case
     Left e     -> error $ show e
     Right conn -> pure conn
 

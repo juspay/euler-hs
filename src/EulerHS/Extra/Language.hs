@@ -13,8 +13,8 @@ This is an internal module. Import `EulerHS.Language` instead.
 -}
 
 module EulerHS.Extra.Language
-  ( getOrInitSqlConn
-  , getOrInitKVDBConn
+  ( getOrInitSqlConnection
+  , getOrInitKVDBConnection
   , rExpire
   , rExpireB
   , rDel
@@ -58,17 +58,17 @@ type ByteField = ByteString
 type ByteValue = ByteString
 
 -- | Get existing SQL connection, or init a new connection.
-getOrInitSqlConn :: (HasCallStack, L.MonadFlow m) =>
+getOrInitSqlConnection :: (HasCallStack, L.MonadFlow m) =>
   T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
-getOrInitSqlConn cfg = do
+getOrInitSqlConnection cfg = do
   eConn <- L.getSqlDBConnection cfg
   case eConn of
     Left (T.DBError T.ConnectionDoesNotExist _) -> L.initSqlDBConnection cfg
     res                                         -> pure res
 
 -- | Get existing Redis connection, or init a new connection.
-getOrInitKVDBConn :: (HasCallStack, L.MonadFlow m) => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
-getOrInitKVDBConn cfg = do
+getOrInitKVDBConnection :: (HasCallStack, L.MonadFlow m) => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
+getOrInitKVDBConnection cfg = do
   conn <- L.getKVDBConnection cfg
   case conn of
     Left (T.KVDBError T.KVDBConnectionDoesNotExist _) -> L.initKVDBConnection cfg

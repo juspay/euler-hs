@@ -21,6 +21,7 @@ Framework is successfully used in production in Juspay and shows impressive resu
   - [SQL subsystem](#SQL-subsystem)
   - [mtl style support](#mtl-style-support)
   - [KV DB subsystem](#KV-DB-subsystem)
+  - [Concurrency](#Concurrency)
   - [Forking and awaiting child flows](#Forking-and-awaiting-child-flows)
 * [State handling](#State-handling)
 * [Building the framework](#Building-the-framework)
@@ -261,6 +262,8 @@ myFlow = do
 
 ### SQL subsystem
 
+##### Supported SQL backends
+
 This subsystem supports several SQL backends:
 
 - MySQL
@@ -275,10 +278,64 @@ Unfortunately, there are two drawbacks here.
 - Framework cannot provide things specific to any SQL backend. Only a common subset of features.
 - `beam` itself is a sophisticated library, and its usage is quite difficult. You may want to consult with our [cheatsheet](./BEAM-NOTES.md) on `beam` usage.
 
-There is a test suite [QueryExamplesSpec](testDB/SQLDB/Tests/QueryExamplesSpec.hs) with `beam` samples,
-check it out to get an idea on how to compose queries and how it's all integrated with the `Flow` monad.
+##### Connectivity and pools
 
-In general, you need to define your DB model with tables and relations.
+Framework allows you to create either permanent, application-wide SQL connections, or immediate single-usage connections in place. The `Flow` language provides two methods for connecting and one for disconnecting:
+
+```haskell
+initSqlDBConnection    :: DBConfig beM -> Flow (DBResult (SqlConn beM))
+getOrInitSqlConnection :: DBConfig beM -> Flow (DBResult (SqlConn beM))
+deinitSqlDBConnection  :: SqlConn beM  -> Flow ()
+```
+
+All the connections are held in pools by design (`resource-pool` library). There is no way to avoid this (except maybe making your own connections with `runIO`). You need to fill the `DBConfig` structure to setup the pool.
+
+```haskell
+import EulerHS.Types as T
+import qualified Database.Beam.MySQL as BM
+
+poolConfig = T.PoolConfig
+  { stripes = 1
+  , keepAlive = 10
+  , resourcesPerStripe = 50
+  }
+
+sqliteCfg :: DBConfig BM.SqliteM
+sqliteCfg = T.mkSQLitePoolConfig "SQliteDB" testDBName poolConfig
+```
+
+Here, `SqlietM` is a phantom type provided by the `beam-mysql` library. Every SQL backend has own phantom type to distinguish between them. You can use smart constructors for producing configs for every backend:
+
+```haskell
+import "beam-mysql"    Database.Beam.MySQL as BM
+import "beam-postgres" Database.Beam.Postgres as BP
+import "beam-sqlite"   Database.Beam.Sqlite as BS
+
+mkSQLitePoolConfig   :: ConnTag -> SQliteDBname   -> PoolConfig -> DBConfig BM.SqliteM
+mkPostgresPoolConfig :: ConnTag -> PostgresConfig -> PoolConfig -> DBConfig BP.Pg
+mkMySQLPoolConfig    :: ConnTag -> MySQLConfig    -> PoolConfig -> DBConfig BS.MySQLM
+```
+
+The `ConnTag` parameter is a `Text` mark that is used to uniquely identify a pool of your connections. If you want to have several pools (for example, for several distinct SQL backends), you should provide unique tags for each pool.
+
+Simplified smart constructors use a default pool setting:
+
+```haskell
+mkSQLiteConfig   :: ConnTag -> SQliteDBname   -> DBConfig BS.SqliteM
+mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
+mkMySQLConfig    :: ConnTag -> MySQLConfig    -> DBConfig BM.MySQLM
+
+defaultPoolConfig :: PoolConfig
+defaultPoolConfig = PoolConfig
+  { stripes = 1
+  , keepAlive = 100
+  , resourcesPerStripe = 1
+  }
+```
+
+##### DB model and DB schema with beam
+
+In order to query your database, you should define a DB model for its schema. This model will encode your tables and relations according to `beam` requirements.
 
 ```haskell
 import qualified Database.Beam as B
@@ -340,24 +397,28 @@ clubDB = B.defaultDbSettings `B.withDbModification` B.dbModification
     }
 ```
 
-There can be conversion functions between your domain model and DB models, but in general, it's possible to have only the latter.
+There can be conversion functions between your domain model and DB models, but the simplest approach would be to stick with only the DB model.
 
-Simple SELECT query for the `members` table which requests all members joined after this date:
+##### Querying
+
+A typical `SELECT` query for the `members` table is presented in the following code. It requests all members joined after this date:
 
 ```haskell
 searchByDate :: LocalTime -> L.Flow (T.DBResult [Member])
 searchByDate startDate = do
   conn <- connectOrFail sqliteCfg       -- obtain SQLite config somehow
-  L.runDB conn                          -- run a query
-    $ L.findRows                        -- SELECT query returning rows
+  L.runDB conn                          -- run a query non-transactionally
+    $ L.findRows                        -- SELECT query, returns rows
     $ B.select
     $ B.filter_ (\m -> joinDate m >=. B.val_ startDate)
     $ B.all_ (members clubDB)
 ```
 
-Notice that we use `runDB` for running SQL queries expressed in `beam` and wrapped into the `SqlDB` language. This function does not imply transactionality, but if you need it, use `runTransaction` instead. In this case, any query packed into an `SqlDB` monadic block, will be scoped by a single transaction.
+Notice that we use `runDB` for running SQL queries expressed in `beam` and wrapped into the `SqlDB` language. The `runDB` evaluates the DB script non-transactionally. Use another version of this function, `runDBTransaction` instead. In this case, any query packed into an `SqlDB` monadic block, will be scoped by a single transaction.
 
-Framework allows you to create either permanent, application-wide SQL connections, or immediate single-usage connections in place.
+`beam` exposes a set of methods to construct `insert`, `update` and `delete` queries. These all are integrated into the framework. Consult with this test suite [QueryExamplesSpec](testDB/SQLDB/Tests/QueryExamplesSpec.hs) on how to compose queries with `beam` and `SqlDB`.
+
+##### Permanent connections
 
 For permanent connections, you need to create them on the __Application Layer__ and pass them into your `Flow` scenarios. One of the possible solutions will be to wrap your `Flow` scenarios into a `ReaderT` stack (so called `ReaderT` pattern), and provide an environment with permanent connections:
 
@@ -393,16 +454,6 @@ type DBResult a = Either DBError a
 ```
 
 Where `DBErrorType` is an enum with various reasons of DB failure.
-
-`Flow` has methods for connecting and disconnecting:
-
-```haskell
-initSqlDBConnection   :: DBConfig beM -> Flow (DBResult (SqlConn beM))
-deinitSqlDBConnection :: SqlConn beM  -> Flow ()
-getOrInitSqlConn      :: DBConfig beM -> Flow (DBResult (SqlConn beM))
-```
-
-Surely, you should be careful to not produce race conditions when using these methods from different threads.
 
 For more info on the SQL DB subsystem usage, see tutorials and background materials.
 
@@ -450,6 +501,18 @@ See tests for more info:
 - [KVDBSpec](./testDB/KVDB/KVDBSpec.hs)
 - [KVDBArtSpec](./test/EulerHS/Tests/Framework/KVDBArtSpec.hs)
 
+### Concurrency
+
+EulerHS is a concurrent framework. It can be easily used with Servant or Scotty for building web services and RESTful applications. The runtime of the framework is concurrent and is capable to handle parallel flows. Although the Runtime is thread-safe, it doesn't free you from writing thread safe flows. The framework exposes a set of operations which may produce race conditions if used wrongly and/or from different threads:
+
+`getOption`
+`setOption`
+`delOption`
+
+`initSqlDBConnection`
+`deinitSqlDBConnection`
+`getSqlDBConnection`
+
 ### Forking and awaiting child flows
 
 It's possible to fork controllable flows and await for their results. This subsystem can be used to compose async-like flows, but the main case is parallel execution.
@@ -475,10 +538,6 @@ myFlow = do
 
   -- Returns (Just "1", Just "2") after approximately 100000 ms.
 ```
-
-## State handling
-
-TODO
 
 ## Building the framework
 

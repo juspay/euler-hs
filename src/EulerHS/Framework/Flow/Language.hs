@@ -398,11 +398,12 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 runIO :: (HasCallStack, MonadFlow m, T.JSONEx a) => IO a -> m a
 runIO = runIO' ""
 
--- | The same as runIO, but do not record IO outputs in the ART recordings.
+-- | The same as runIO, but does not record IO outputs in the ART recordings.
 --   For example, this can be useful to implement things like STM or use mutable
 --   state.
 --
 -- Warning. This method is dangerous and should be used wisely.
+-- Also, it breask the ART system.
 --
 -- > myFlow = do
 -- >   content <- runUntracedIO $ readFromFile file
@@ -640,9 +641,9 @@ class (MonadThrow m) => MonadFlow m where
     -> m (T.DBResult a)
 
   -- | Like @runDB@ but the SqlDB script will be considered a transactional scope.
-  -- All the queries made within a single @runTransaction@ scope will be placed
+  -- All the queries made within a single @runDBTransaction@ scope will be placed
   -- into a single transaction.
-  runTransaction
+  runDBTransaction
     ::
       ( HasCallStack
       , T.JSONEx a
@@ -806,8 +807,8 @@ instance MonadFlow Flow where
   getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
   {-# INLINEABLE runDB #-}
   runDB conn dbAct = liftFC $ RunDB conn dbAct False id
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
+  {-# INLINEABLE runDBTransaction #-}
+  runDBTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
   {-# INLINEABLE await #-}
   await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
   {-# INLINEABLE runSafeFlow #-}
@@ -862,8 +863,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getKVDBConnection = lift . getKVDBConnection
   {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE runDBTransaction #-}
+  runDBTransaction conn = lift . runDBTransaction conn
   {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
   {-# INLINEABLE runSafeFlow #-}
@@ -914,8 +915,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getKVDBConnection = lift . getKVDBConnection
   {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE runDBTransaction #-}
+  runDBTransaction conn = lift . runDBTransaction conn
   {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
   {-# INLINEABLE runSafeFlow #-}
@@ -966,8 +967,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getKVDBConnection = lift . getKVDBConnection
   {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE runDBTransaction #-}
+  runDBTransaction conn = lift . runDBTransaction conn
   {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
   {-# INLINEABLE runSafeFlow #-}
@@ -1018,8 +1019,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getKVDBConnection = lift . getKVDBConnection
   {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE runDBTransaction #-}
+  runDBTransaction conn = lift . runDBTransaction conn
   {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
   {-# INLINEABLE runSafeFlow #-}
@@ -1070,8 +1071,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getKVDBConnection = lift . getKVDBConnection
   {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE runDBTransaction #-}
+  runDBTransaction conn = lift . runDBTransaction conn
   {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
   {-# INLINEABLE runSafeFlow #-}

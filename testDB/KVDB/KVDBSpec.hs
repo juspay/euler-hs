@@ -59,9 +59,9 @@ spec =
             _                -> pure $ Right ()
         eRes `shouldBe` Right ()
 
-      it "getOrInitKVDBConn should succeed" $ \rt -> do
+      it "getOrInitKVDBConnection should succeed" $ \rt -> do
         eRes :: Either String () <- runFlow rt $ do
-          eConn <- L.getOrInitKVDBConn redisCfg
+          eConn <- L.getOrInitKVDBConnection redisCfg
           case eConn of
             Left err -> pure $ Left $ "Failed to connect: " <> show err
             _        -> pure $ Right ()

@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.5.0.1
+version:       2.6.0.0
 synopsis:      The Flow framework for web backends
 license:       Apache-2.0
 author:        Juspay Technologies Pvt Ltd

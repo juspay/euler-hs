@@ -1,5 +1,12 @@
 # Changelog for euler-hs
 
+## [2.6.0.0] - 2020-03-29
+  - New documentation
+  - Renamings:
+    * `runTransaction` -> `runDBTransaction`
+    * `getOrInitSqlConn` -> `getOrInitSqlConnection`
+    * `getOrInitKVDBConn` -> `getOrInitKVDBConnection`
+
 ## [2.5.0.1] - 2020-03-26
   - New documentation
 

@@ -87,9 +87,9 @@ spec = do
               _                -> pure $ Right ()
           eRes `shouldBe` Right ()
 
-        it "getOrInitSqlConn should succeed" $ \rt -> do
+        it "getOrInitSqlConnection should succeed" $ \rt -> do
           eRes :: Either String () <- runFlow rt $ do
-            eConn <- L.getOrInitSqlConn sqliteCfg
+            eConn <- L.getOrInitSqlConnection sqliteCfg
             case eConn of
               Left err -> pure $ Left $ "Failed to connect: " <> show err
               _        -> pure $ Right ()

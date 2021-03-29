@@ -108,8 +108,8 @@ The generated SQL code will contain `UPDATE ... WHERE (some_id == 1) IS TRUE` wh
 `beam` does not provide support for transactions, but the `EulerHS` provides own way to have transactions for SQL DBs (when the SQL backends allow that).
 
 There are two methods for running a query script:
-- `runDB`          - run a query without a transaction;
-- `runTransaction` - treat the `SqlDB` monad as a transactional scope and run it within a transaction.
+- `runDB`            - run a query without a transaction;
+- `runDBTransaction` - treat the `SqlDB` monad as a transactional scope and run it within a transaction.
 
 ### Connectivity & pool management
 
