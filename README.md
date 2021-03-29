@@ -23,7 +23,6 @@ Framework is successfully used in production in Juspay and shows impressive resu
   - [KV DB subsystem](#KV-DB-subsystem)
   - [Concurrency](#Concurrency)
   - [Forking and awaiting child flows](#Forking-and-awaiting-child-flows)
-* [State handling](#State-handling)
 * [Building the framework](#Building-the-framework)
 * [Testing the framework](#Testing-the-framework)
 * [EulerHS tutorials and template projects](#EulerHS-tutorials-and-template-projects)
