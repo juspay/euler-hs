@@ -560,7 +560,7 @@ There are disabled tests for MySQL and Postgres DB backends. To run them:
 
 * [Tutorial](./TUTORIAL.md)
 * [Beam query examples](./lib/euler-hs/testDB/SQLDB/Tests/QueryExamplesSpec.hs)
-* Demo project (**coming soon**)
+* [Echo server demo project](./demo/echo-server)
 
 ## Background materials
 
