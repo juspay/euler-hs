@@ -1,23 +1,17 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module EchoServer.API where
+module Echo.API where
 
 import EulerHS.Prelude
 import Servant
+
+import Echo.Domain
 
 
 data EchoRequest = EchoRequest
   { phrase :: Text
   , number :: Int
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-
-data EchoMessage = EchoMessage
-  { phrase :: Text
-  , number :: Int
-  , easterEgg :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

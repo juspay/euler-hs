@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 07bccb22858728a57b9af5be1b547f363f4b7898f4da9bb8faedd605e9be41e1
+-- hash: 1adcf78d0ccbde7e7fc51b56d5f2316a04f0756f90d5b606ca5432f1c6f0276e
 
 name:           echo-server
 version:        1.0.0.0
@@ -23,7 +23,10 @@ source-repository head
 
 library
   exposed-modules:
-      EchoServer.API
+      Echo.API
+      Echo.Domain
+      Echo.Logic
+      Echo.Server
       Main
   other-modules:
       Paths_echo_server
@@ -61,7 +64,10 @@ library
 executable echo-server
   main-is: Main.hs
   other-modules:
-      EchoServer.API
+      Echo.API
+      Echo.Domain
+      Echo.Logic
+      Echo.Server
       Paths_echo_server
   hs-source-dirs:
       src/
