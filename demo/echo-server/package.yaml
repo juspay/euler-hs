@@ -1,0 +1,85 @@
+name:                echo-server
+version:             1.0.0.0
+github:              "juspay/euler-hs/demo/echo-server"
+license:             Apache
+author:              "Juspay Technologies Pvt Ltd"
+maintainer:          "opensource@juspay.in"
+copyright:           "(C) Juspay Technologies Pvt Ltd 2019-2021"
+
+
+description:
+  Demo application for EulerHS
+
+default-extensions:
+- NoImplicitPrelude
+- GADTs
+- RankNTypes
+- DeriveFunctor
+- DeriveGeneric
+- OverloadedStrings
+- LambdaCase
+- MultiParamTypeClasses
+- ExplicitNamespaces
+- TypeApplications
+- ScopedTypeVariables
+- TypeOperators
+- TypeFamilies
+- DataKinds
+- FlexibleContexts
+- FlexibleInstances
+- PatternSynonyms
+- PolyKinds
+- DefaultSignatures
+- ConstraintKinds
+- NamedFieldPuns
+- TupleSections
+- ViewPatterns
+- MultiWayIf
+- RecordWildCards
+
+dependencies:
+- base >= 4.7 && < 5
+- bytestring
+- aeson
+- aeson-pretty
+- mtl
+- directory
+- filepath
+- time
+- clock
+- containers
+- transformers
+- template-haskell
+- text
+- fmt
+- stm
+- validation
+- servant
+- servant-server
+- servant-client
+- servant-swagger
+- servant-docs
+- http-client
+- euler-hs
+- warp
+
+
+library:
+  source-dirs:
+  - src
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -fhide-source-paths
+
+executables:
+  echo-server:
+    main:                Main.hs
+    source-dirs:         src/
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -Wall
+    # - -O2

@@ -1,0 +1,95 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 07bccb22858728a57b9af5be1b547f363f4b7898f4da9bb8faedd605e9be41e1
+
+name:           echo-server
+version:        1.0.0.0
+description:    Demo application for EulerHS
+homepage:       https://github.com/juspay/euler-hs/demo/echo-server#readme
+bug-reports:    https://github.com/juspay/euler-hs/demo/echo-server/issues
+author:         Juspay Technologies Pvt Ltd
+maintainer:     opensource@juspay.in
+copyright:      (C) Juspay Technologies Pvt Ltd 2019-2021
+license:        Apache
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/juspay/euler-hs/demo/echo-server
+
+library
+  exposed-modules:
+      EchoServer.API
+      Main
+  other-modules:
+      Paths_echo_server
+  hs-source-dirs:
+      src
+  default-extensions: NoImplicitPrelude GADTs RankNTypes DeriveFunctor DeriveGeneric OverloadedStrings LambdaCase MultiParamTypeClasses ExplicitNamespaces TypeApplications ScopedTypeVariables TypeOperators TypeFamilies DataKinds FlexibleContexts FlexibleInstances PatternSynonyms PolyKinds DefaultSignatures ConstraintKinds NamedFieldPuns TupleSections ViewPatterns MultiWayIf RecordWildCards
+  ghc-options: -Wall -Wcompat -Widentities -fhide-source-paths
+  build-depends:
+      aeson
+    , aeson-pretty
+    , base >=4.7 && <5
+    , bytestring
+    , clock
+    , containers
+    , directory
+    , euler-hs
+    , filepath
+    , fmt
+    , http-client
+    , mtl
+    , servant
+    , servant-client
+    , servant-docs
+    , servant-server
+    , servant-swagger
+    , stm
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , validation
+    , warp
+  default-language: Haskell2010
+
+executable echo-server
+  main-is: Main.hs
+  other-modules:
+      EchoServer.API
+      Paths_echo_server
+  hs-source-dirs:
+      src/
+  default-extensions: NoImplicitPrelude GADTs RankNTypes DeriveFunctor DeriveGeneric OverloadedStrings LambdaCase MultiParamTypeClasses ExplicitNamespaces TypeApplications ScopedTypeVariables TypeOperators TypeFamilies DataKinds FlexibleContexts FlexibleInstances PatternSynonyms PolyKinds DefaultSignatures ConstraintKinds NamedFieldPuns TupleSections ViewPatterns MultiWayIf RecordWildCards
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      aeson
+    , aeson-pretty
+    , base >=4.7 && <5
+    , bytestring
+    , clock
+    , containers
+    , directory
+    , euler-hs
+    , filepath
+    , fmt
+    , http-client
+    , mtl
+    , servant
+    , servant-client
+    , servant-docs
+    , servant-server
+    , servant-swagger
+    , stm
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , validation
+    , warp
+  default-language: Haskell2010

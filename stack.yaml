@@ -2,6 +2,7 @@ resolver: lts-15.15
 
 packages:
   - .
+  - demo/echo-server
 
 extra-deps:
   - git: https://github.com/juspay/hedis
