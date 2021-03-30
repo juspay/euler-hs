@@ -2,6 +2,7 @@
 
 ## [2.6.0.0] - 2020-03-29
   - New documentation
+  - Demo app added: echo server
   - Renamings:
     * `runTransaction` -> `runDBTransaction`
     * `getOrInitSqlConn` -> `getOrInitSqlConnection`
