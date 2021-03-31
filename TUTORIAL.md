@@ -4,9 +4,9 @@
 
 * [Your first flow](#Your-first-flow)
 * [Running your flows](#Running-your-flows)
-* [Servant based web server (coming soon)](Servant-based-web-server)
-* [Working with SQL subsystem (coming soon)](Working-with-SQL-subsystem)
-* [State handling (coming soon)](#State-handling)
+* [Servant based web server](Servant-based-web-server)
+* [State handling](#State-handling)
+* [Working with SQL subsystem](Working-with-SQL-subsystem)
 * [Automatic regression testing (coming soon)](#Automatic-regression-testing)
 * [See also](#See-also)
 
@@ -136,10 +136,6 @@ data Env = Env !R.FlowRuntime !AppState
 
 Obtain `FlowRuntime` and configure your server as shown in [Server.hs](./demo/echo-server/Echo/Server.hs).
 
-## Working with SQL subsystem
-
-[README # SQL subsystem](https://github.com/juspay/euler-hs#SQL-subsystem) provides a good overview on possibilities the framework provides to work with relational data bases.
-
 ## State handling
 
 There is a number of methods to work with state in your `Flow` scenarios.
@@ -202,6 +198,10 @@ myHandler = do
 Prohibiting of uncontrolled variables creation is not a bad thing. The handlers of your backend app will be queried many times per second, and you definitely don't want your flow scenarios to consume memory. Additionally, this may be not thread safe enough if done wrong.
 
 Still, when you really need this, you can run the `runUntracedIO` method. It doesn't have any restrictions placed by ART, so you can freely create any variables with it. But be aware that your scripts will stop being ART-replayable.
+
+## Working with SQL subsystem
+
+[README # SQL subsystem](https://github.com/juspay/euler-hs#SQL-subsystem) provides a good overview on possibilities the framework provides to work with relational data bases.
 
 # Automatic regression testing
 
