@@ -4,9 +4,9 @@
 
 * [Your first flow](#Your-first-flow)
 * [Running your flows](#Running-your-flows)
-* [Servant based web server](Servant-based-web-server)
+* [Servant based web server](#Servant-based-web-server)
 * [State handling](#State-handling)
-* [Working with SQL subsystem](Working-with-SQL-subsystem)
+* [Working with SQL subsystem](#Working-with-SQL-subsystem)
 * [Automatic regression testing (coming soon)](#Automatic-regression-testing)
 * [See also](#See-also)
 
