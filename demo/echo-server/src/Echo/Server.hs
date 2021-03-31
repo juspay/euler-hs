@@ -18,8 +18,8 @@ data AppState = AppState
   }
 
 data Env = Env !R.FlowRuntime !AppState
-type AppHandler = ReaderT Env (ExceptT ServerError IO)
-type AppServer  = ServerT EchoAPI AppHandler
+type MethodHandler = ReaderT Env (ExceptT ServerError IO)
+type AppServer  = ServerT EchoAPI MethodHandler
 
 
 -- Handlers connected to the API
@@ -47,7 +47,7 @@ echoApp = serve echoAPI . echoServer
 
 
 -- Wrapper to run a flow with a predefined flow runtime.
-runFlow :: L.Flow a -> AppHandler a
+runFlow :: L.Flow a -> MethodHandler a
 runFlow flow = do
   Env flowRt _ <- ask
   eRes <- lift $ lift $ try $ I.runFlow flowRt flow
@@ -59,12 +59,12 @@ runFlow flow = do
 
 
 -- Method handlers
-getEcho :: Maybe Text -> Maybe Int -> AppHandler EchoMessage
+getEcho :: Maybe Text -> Maybe Int -> MethodHandler EchoMessage
 getEcho mbPhrase mbNumber = do
   Env _ (AppState easterEgg) <- ask
   runFlow $ echoFlow easterEgg mbPhrase mbNumber
 
-postEcho :: EchoRequest -> AppHandler EchoMessage
+postEcho :: EchoRequest -> MethodHandler EchoMessage
 postEcho (EchoRequest phrase number) = do
   Env _ (AppState easterEgg) <- ask
   runFlow $ echoFlow easterEgg (Just phrase) (Just number)
