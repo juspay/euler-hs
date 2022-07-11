@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.6.0.1] - 2021-07-06
+
+* Fix resource cleanup on exception inside `withResource`
+
 ## [2.6.0.0] - 2020-03-29
   - New documentation
   - Demo app added: echo server

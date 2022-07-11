@@ -140,14 +140,14 @@ instance BeamRunner BM.MySQLM where
 
 withTransaction :: forall beM a .
   SqlConn beM -> (NativeSqlConn -> IO a) -> IO (Either SomeException a)
-withTransaction conn f = case conn of
+withTransaction conn f = tryAny $ case conn of
   MockedPool _ -> error "Mocked pool connections are not supported."
   PostgresPool _ pool -> DP.withResource pool (go PGS.withTransaction NativePGConn)
   MySQLPool _ pool -> DP.withResource pool (go MySQL.withTransaction NativeMySQLConn)
   SQLitePool _ pool -> DP.withResource pool (go SQLite.withTransaction NativeSQLiteConn)
   where
-    go :: forall b . (b -> IO a -> IO a) -> (b -> NativeSqlConn) -> b -> IO (Either SomeException a)
-    go hof wrap conn' = tryAny (hof conn' (f . wrap $ conn'))
+    go :: forall b . (b -> IO a -> IO a) -> (b -> NativeSqlConn) -> b -> IO a
+    go hof wrap conn' = hof conn' (f . wrap $ conn')
 
 -- | Representation of native DB pools that we store in FlowRuntime
 data NativeSqlPool

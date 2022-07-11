@@ -413,14 +413,17 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
       False ->
         case conn of
           (T.MockedPool _)        -> error "Mocked Pool not implemented"
-          (T.PostgresPool _ pool) -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . R.runSqlDB (T.NativePGConn conn') dbgLogAction $ sqlDbMethod
+          (T.PostgresPool _ pool) -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' -> 
+                        R.runSqlDB (T.NativePGConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
-          (T.MySQLPool _ pool)    -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . R.runSqlDB (T.NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
+          (T.MySQLPool _ pool)    -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' -> 
+                        R.runSqlDB (T.NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
-          (T.SQLitePool _ pool)   -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . R.runSqlDB (T.NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
+          (T.SQLitePool _ pool)   -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' -> 
+                        R.runSqlDB (T.NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
   where
       wrapAndSend rawSqlLoc eResult = do
