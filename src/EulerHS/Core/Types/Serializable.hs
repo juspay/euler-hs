@@ -7,6 +7,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 
+
 module EulerHS.Core.Types.Serializable
   (
     -- * Core Serializable
@@ -160,7 +161,7 @@ instance JSONEx a => EitherC (Serializable [a]) d where resolve r _ = r
 ----------------------------------------------------------------------
 
 instance Serializable ByteString where
-    jsonEncode bs = A.object ["b64" A..= mkBS64 bs, "utf8" A..= decodeUtf8 @Text bs]
+    jsonEncode bs = A.object ["b64" A..= mkBS64 bs]
     jsonDecode = A.parseMaybe . A.withObject "bs" $ \o -> fmap getBS64 (o A..: "b64")
 
 instance Serializable ByteString64 where

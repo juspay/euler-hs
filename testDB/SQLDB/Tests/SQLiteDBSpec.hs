@@ -24,8 +24,8 @@ import           Test.Hspec hiding (runIO)
 
 -- Configurations
 
-sqliteCfg' :: DBConfig BS.SqliteM
-sqliteCfg' = T.mkSQLiteConfig "eulerSQliteDB" testDBName
+sqliteCfg :: DBConfig BS.SqliteM
+sqliteCfg = T.mkSQLiteConfig "eulerSQliteDB" testDBName
 
 poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
@@ -45,7 +45,7 @@ spec = do
   let
       test sqliteCfg = do
         it "Double connection initialization should fail" $ \rt -> do
-          eRes :: Either String () <- runFlow rt $ do
+          eRes <- runFlow rt $ do
             eConn1 <- L.initSqlDBConnection sqliteCfg
             eConn2 <- L.initSqlDBConnection sqliteCfg
             case (eConn1, eConn2) of
@@ -56,7 +56,7 @@ spec = do
           eRes `shouldBe` Right ()
 
         it "Get uninialized connection should fail" $ \rt -> do
-          eRes :: Either String () <- runFlow rt $ do
+          eRes <- runFlow rt $ do
             eConn <- L.getSqlDBConnection sqliteCfg
             case eConn of
               Left (T.DBError T.ConnectionDoesNotExist msg)
@@ -66,7 +66,7 @@ spec = do
           eRes `shouldBe` Right ()
 
         it "Init and get connection should succeed" $ \rt -> do
-          eRes :: Either String () <- runFlow rt $ do
+          eRes <- runFlow rt $ do
             eConn1 <- L.initSqlDBConnection sqliteCfg
             eConn2 <- L.getSqlDBConnection sqliteCfg
             case (eConn1, eConn2) of
@@ -76,7 +76,7 @@ spec = do
           eRes `shouldBe` Right ()
 
         it "Init and double get connection should succeed" $ \rt -> do
-          eRes :: Either String () <- runFlow rt $ do
+          eRes <- runFlow rt $ do
             eConn1 <- L.initSqlDBConnection sqliteCfg
             eConn2 <- L.getSqlDBConnection sqliteCfg
             eConn3 <- L.getSqlDBConnection sqliteCfg
@@ -87,9 +87,9 @@ spec = do
               _                -> pure $ Right ()
           eRes `shouldBe` Right ()
 
-        it "getOrInitSqlConnection should succeed" $ \rt -> do
-          eRes :: Either String () <- runFlow rt $ do
-            eConn <- L.getOrInitSqlConnection sqliteCfg
+        it "getOrInitSqlConn should succeed" $ \rt -> do
+          eRes <- runFlow rt $ do
+            eConn <- L.getOrInitSqlConn sqliteCfg
             case eConn of
               Left err -> pure $ Left $ "Failed to connect: " <> show err
               _        -> pure $ Right ()
@@ -145,8 +145,8 @@ spec = do
               _userFirstName u2 `shouldBe` "Doe"
               _userLastName  u2 `shouldBe` "John"
 
-  around (withEmptyDB insertTestValues sqliteCfg') $
-    describe "EulerHS SQLite DB tests" $ test sqliteCfg'
+  around (withEmptyDB insertTestValues sqliteCfg) $
+    describe "EulerHS SQLite DB tests" $ test sqliteCfg
 
   around (withEmptyDB insertTestValues sqlitePoolCfg) $
     describe "EulerHS SQLite DB tests. Pool cfg." $ test sqlitePoolCfg

@@ -47,17 +47,15 @@ uniqueConstraintViolationDbScript :: T.DBConfig BS.SqliteM -> L.Flow (T.DBResult
 uniqueConstraintViolationDbScript cfg = do
   connection <- connectOrFail cfg
 
-  eRes1 <- L.runDB connection
+  L.runDB connection
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
 
-  eRes2 <- L.runDB connection
+  L.runDB connection
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
-
-  pure $ eRes1 >> eRes2
 
 selectUnknownDbScript :: T.DBConfig BS.SqliteM -> L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript cfg = do

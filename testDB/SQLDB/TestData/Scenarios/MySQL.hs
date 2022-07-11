@@ -5,6 +5,7 @@ import           EulerHS.Prelude
 import qualified EulerHS.Language as L
 import qualified EulerHS.Types as T
 
+import           SQLDB.TestData.Connections (connectOrFail)
 import           SQLDB.TestData.Types
 
 import           Database.Beam ((<-.), (==.))
@@ -17,24 +18,22 @@ uniqueConstraintViolationDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      eRes1 <- L.runDB conn
-          $ L.insertRows
+      L.runDB conn $
+        L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 2 "Rosa" "Rosa"]
 
-      eRes2 <- L.runDB conn
-          $ L.insertRows
+      L.runDB conn $
+        L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 2 "Rosa" "Rosa"]
-
-      pure $ eRes1 >> eRes2
 
 
 uniqueConstraintViolationEveDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
 uniqueConstraintViolationEveDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
-    flip (either $ error "Unable to get connection") econn $ \conn ->
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
       L.runDB conn $ do
         L.insertRows
           $ B.insert (_users eulerDb)
@@ -49,29 +48,33 @@ uniqueConstraintViolationMickeyDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      eRes1 <- L.runDB conn $
+      L.runDB conn $
         L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 4 "Mickey" "Mouse"]
 
-      eRes2 <- L.runDB conn $
+      L.runDB conn $
         L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 4 "Mickey" "Mouse"]
 
-      pure $ eRes1 >> eRes2
+
+data MyException = ThisException | ThatException
+    deriving Show
+
+instance Exception MyException
 
 throwExceptionFlowScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
 throwExceptionFlowScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
-    flip (either $ error "Unable to get connection") econn $ \conn ->
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
       L.runDB conn $ do
         L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 6 "Billy" "Evil"]
 
-        void $ error "ThisException"
+        L.sqlThrowException ThisException
 
         L.insertRows
           $ B.insert (_users eulerDb)
@@ -82,7 +85,7 @@ insertAndSelectWithinOneConnectionScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DB
 insertAndSelectWithinOneConnectionScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
-    flip (either $ error "Unable to get connection") econn $ \conn ->
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
       L.runDB conn $ do
         L.insertRows
           $ B.insert (_users eulerDb)
@@ -128,12 +131,12 @@ selectOneDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      eRes1 <- L.runDB conn
+      L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertExpressions (mkUser <$> susers)
 
-      eRes2 <- L.runDB conn $ do
+      L.runDB conn $ do
         let predicate User {..} = _userFirstName ==. "John"
 
         L.findRow
@@ -141,8 +144,6 @@ selectOneDbScript dbcfg = do
           $ B.limit_ 1
           $ B.filter_ predicate
           $ B.all_ (_users eulerDb)
-
-      pure $ eRes1 >> eRes2
 
 
 insertReturningScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult [User])

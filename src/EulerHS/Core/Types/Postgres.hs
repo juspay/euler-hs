@@ -1,20 +1,6 @@
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
-{- |
-Module      :  EulerHS.Core.Types.Postgres
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
-License     :  Apache 2.0 (see the file LICENSE)
-Maintainer  :  opensource@juspay.in
-Stability   :  experimental
-Portability :  non-portable
-
-Types and helper functions to wrap a Postgres-related stuff.
-
-This module is internal and should not imported in the projects.
-Import 'EulerHS.Types' instead.
--}
-
 module EulerHS.Core.Types.Postgres
   (
     -- * Core Postgres
@@ -29,7 +15,7 @@ import           EulerHS.Prelude
 
 import qualified Database.Beam.Postgres as BP
 
--- | Postgres config
+
 data PostgresConfig = PostgresConfig
   { connectHost     :: String
   , connectPort     :: Word16
@@ -49,3 +35,4 @@ createPostgresConn = BP.connect . toBeamPostgresConnectInfo
 -- | Close the given connection.
 closePostgresConn :: BP.Connection -> IO ()
 closePostgresConn = BP.close
+

@@ -10,7 +10,6 @@ module EulerHS.Core.Logger.Impl.TinyLogger
   , createVoidLogger
   , disposeLogger
   , withLogger
-  , withLogger'
   , defaultDateFormat
   , defaultRenderer
   , defaultBufferSize
@@ -21,6 +20,8 @@ import           EulerHS.Prelude hiding ((.=))
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
 import qualified System.Logger as Log
+import qualified System.Logger.Message as LogMsg
+
 import qualified EulerHS.Core.Types as T
 
 type LogQueue = (Chan.InChan T.PendingMsg, Chan.OutChan T.PendingMsg)
@@ -39,10 +40,17 @@ dispatchLogLevel T.Warning = Log.Warn
 dispatchLogLevel T.Error   = Log.Error
 
 logPendingMsg :: T.FlowFormatter -> Loggers -> T.PendingMsg -> IO ()
-logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl _ _ _) = do
+logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag msg msgNum logContext) = do
   formatter <- flowFormatter mbFlowGuid
+  let msgBuilder = formatter pendingMsg
   let lvl' = dispatchLogLevel lvl
-  let msg' = Log.msg $ formatter pendingMsg
+  let msg' = case msgBuilder of
+        T.SimpleString str -> Log.msg str
+        T.SimpleText txt -> Log.msg txt
+        T.SimpleBS bs -> Log.msg bs
+        T.SimpleLBS lbs -> Log.msg lbs
+        T.MsgBuilder bld -> Log.msg bld
+        T.MsgTransformer f -> f
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
 
 loggerWorker :: T.FlowFormatter -> Chan.OutChan T.PendingMsg -> Loggers -> IO ()
@@ -73,7 +81,7 @@ createLogger'
   mbRenderer
   bufferSize
   flowFormatter
-  (T.LoggerConfig isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
+  (T.LoggerConfig isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _ _) = do
 
     let fileSettings
           = Log.setFormat mbDateFormat
@@ -120,9 +128,19 @@ disposeLogger _ (SyncLoggerHandle loggers) = do
 disposeLogger flowFormatter (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
   putStrLn @String "Disposing async logger..."
   traverse_ killThread threadIds
-  Chan.getChanContents outChan >>= mapM_ (logPendingMsg flowFormatter loggers)
+  logRemaining outChan
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
+  where
+    logRemaining :: Chan.OutChan T.PendingMsg -> IO ()
+    logRemaining oc = do
+      (el,_) <- Chan.tryReadChan oc
+      mPendingMsg <- Chan.tryRead el
+      case mPendingMsg of
+        Just pendingMsg -> do
+            logPendingMsg flowFormatter loggers pendingMsg
+            logRemaining oc
+        Nothing -> pure ()
 
 withLogger'
   :: Maybe Log.DateFormat

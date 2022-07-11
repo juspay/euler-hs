@@ -4,20 +4,25 @@ import           EulerHS.Prelude
 
 import           EulerHS.Interpreters
 import           EulerHS.Runtime (withFlowRuntime)
+import           EulerHS.Types hiding (error)
 import qualified EulerHS.Types as T
-import           SQLDB.TestData.Scenarios.Postgres (uniqueConstraintViolationDbScript,
-  selectUnknownDbScript, selectOneDbScript, updateAndSelectDbScript)
 
+import           SQLDB.TestData.Connections (connectOrFail)
+import           SQLDB.TestData.Scenarios.Postgres
 import           SQLDB.TestData.Types
 
 import qualified Database.Beam.Postgres as BP
+import           Database.PostgreSQL.Simple (execute_)
 import           EulerHS.Extra.Test
+import           EulerHS.Language
+import           EulerHS.Runtime (FlowRuntime, withFlowRuntime)
+import           System.Process
 import           Test.Hspec hiding (runIO)
 
 -- Configurations
 
-pgCfg' :: T.PostgresConfig
-pgCfg' = T.PostgresConfig
+pgCfg :: T.PostgresConfig
+pgCfg = T.PostgresConfig
   { connectHost = "postgres" --String
   , connectPort = 5432 --Word16
   , connectUser = "cloud" -- String
@@ -35,20 +40,17 @@ pgRootCfg =
       , ..
       }
   where
-    T.PostgresConfig {..} = pgCfg'
+    T.PostgresConfig {..} = pgCfg
 
-mkPgCfg :: T.PostgresConfig -> T.DBConfig BP.Pg
-mkPgCfg = T.mkPostgresConfig "eulerPGDB"
+mkPgCfg = mkPostgresConfig "eulerPGDB"
 
-poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
   , resourcesPerStripe = 50
   }
 
-mkPgPoolCfg :: T.PostgresConfig -> T.DBConfig BP.Pg
-mkPgPoolCfg cfg = T.mkPostgresPoolConfig "eulerPGDB" cfg poolConfig
+mkPgPoolCfg cfg = mkPostgresPoolConfig "eulerPGDB" cfg poolConfig
 
 -- Tests
 
@@ -60,11 +62,11 @@ spec = do
             eRes <- runFlow rt $ uniqueConstraintViolationDbScript pgCfg
 
             eRes `shouldBe`
-              ( Left $ T.DBError
-                  ( T.SQLError $ T.PostgresError $
-                      T.PostgresSqlError
+              ( Left $ DBError
+                  ( SQLError $ PostgresError $
+                      PostgresSqlError
                         { sqlState = "23505"
-                        , sqlExecStatus = T.PostgresFatalError
+                        , sqlExecStatus = PostgresFatalError
                         , sqlErrorMsg = "duplicate key value violates unique constraint \"users_pkey\""
                         , sqlErrorDetail = "Key (id)=(2) already exists."
                         , sqlErrorHint = ""
@@ -89,12 +91,12 @@ spec = do
           preparePostgresDB
             "testDB/SQLDB/TestData/PostgresDBSpec.sql"
             pgRootCfg
-            pgCfg'
+            pgCfg
             pgCfgToDbCfg
             (withFlowRuntime Nothing)
 
     around (prepare mkPgCfg) $
-      describe "EulerHS Postgres DB tests" $ test $ mkPgCfg pgCfg'
+      describe "EulerHS Postgres DB tests" $ test $ mkPgCfg pgCfg
 
     around (prepare mkPgPoolCfg) $
-      describe "EulerHS Postgres DB tests. Pool" $ test $ mkPgPoolCfg pgCfg'
+      describe "EulerHS Postgres DB tests. Pool" $ test $ mkPgPoolCfg pgCfg

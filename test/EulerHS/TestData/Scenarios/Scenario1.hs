@@ -1,24 +1,28 @@
-{-# OPTIONS -fno-warn-deprecations #-}
-module EulerHS.TestData.Scenarios.Scenario1 where
+{-# OPTIONS_GHC -fno-warn-deprecations -Werror #-}
 
-import qualified EulerHS.Language as L
-import           EulerHS.Prelude hiding (getOption)
+module EulerHS.TestData.Scenarios.Scenario1
+  (
+    mkUrl, testScenario1
+  ) where
+
+import           EulerHS.TestData.API.Client (User (User), getUser, port, userGUID)
+import           Data.Text (pack)
+import           EulerHS.Language
+import           EulerHS.Prelude hiding (getOption, pack)
+import           EulerHS.TestData.Types
 import           Servant.Client (BaseUrl (..), Scheme (..))
 
-import           EulerHS.TestData.API.Client
-import           EulerHS.TestData.Types
+mkUrl :: String -> BaseUrl
+mkUrl host = BaseUrl Http host port ""
 
-testScenario1 :: L.Flow User
+testScenario1 :: Flow User
 testScenario1 = do
-  localUserName <- L.runSysCmd "whoami"
-  localGUID     <- L.runIO (undefined :: IO String)
-  guid          <- L.generateGUID
-  url           <- maybe (mkUrl "127.0.0.1") mkUrl <$> L.getOption UrlKey
-  res           <- L.callServantAPI Nothing url getUser
-  pure $ case res of
-    Right u | localGUID /= userGUID u -> u
-    Right u | otherwise -> User localUserName "" $ toString guid
-    _ -> User localUserName "Smith" $ toString guid
-  where
-    mkUrl :: String -> BaseUrl
-    mkUrl host = BaseUrl Http host port ""
+  localUserName <- pack <$> runSysCmd "whoami"
+  localGUID <- runIO (undefined :: IO Text)
+  guid <- generateGUID
+  url <- maybe (mkUrl "localhost") mkUrl <$> getOption UrlKey
+  res <- callServantAPI Nothing url getUser
+  case res of
+    Right u ->  if localGUID /= userGUID u then pure u
+                     else pure $ User localUserName "" guid
+    _ -> pure $ User localUserName "Smith" guid

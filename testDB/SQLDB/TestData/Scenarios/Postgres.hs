@@ -5,6 +5,7 @@ import           EulerHS.Prelude
 import qualified EulerHS.Language as L
 import qualified EulerHS.Types as T
 
+import           SQLDB.TestData.Connections (connectOrFail)
 import           SQLDB.TestData.Types
 
 import           Database.Beam ((<-.), (==.))
@@ -19,17 +20,15 @@ uniqueConstraintViolationDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      eRes1 <- L.runDB conn
+      L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertValues [User 2 "Eve" "Beon"]
 
-      eRes2 <- L.runDB conn
+      L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertValues [User 2 "Eve" "Beon"]
-
-      pure $ eRes1 >> eRes2
 
 
 selectUnknownDbScript :: T.DBConfig BP.Pg -> L.Flow (T.DBResult (Maybe User))
@@ -51,12 +50,12 @@ selectOneDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      eRes1 <- L.runDB conn
+      L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertExpressions (mkUser <$> susers)
 
-      eRes2 <- L.runDB conn $ do
+      L.runDB conn $ do
         let predicate User {..} = _userFirstName ==. "John"
 
         L.findRow
@@ -64,8 +63,6 @@ selectOneDbScript dbcfg = do
           $ B.limit_ 1
           $ B.filter_ predicate
           $ B.all_ (_users eulerDb)
-
-      pure $ eRes1 >> eRes2
 
 
 insertReturningScript :: T.DBConfig BP.Pg -> L.Flow (T.DBResult [User])

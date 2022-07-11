@@ -1,14 +1,15 @@
+---
 resolver: lts-15.15
+allow-newer: true
 
 packages:
   - .
-  - demo/echo-server
 
 extra-deps:
   - git: https://github.com/juspay/hedis
-    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql
-    commit: eab93370b30f90e26e39e4d99f51db052aebc992
+    commit: 4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace
   - git: https://github.com/juspay/mysql-haskell
     commit: 788022d65538db422b02ecc0be138b862d2e5cee
   - git: https://github.com/juspay/bytestring-lexing
@@ -20,7 +21,16 @@ extra-deps:
       - beam-migrate
       - beam-sqlite
       - beam-postgres
-
+  - git: https://github.com/juspay/haskell-sequelize.git
+    commit: 3abc8fe10edde3fd1c9a776ede81d057dc590341
+  # Needed for us
+  - servant-0.18.1
+  - servant-mock-0.8.7
+  - servant-server-0.18.1
+  - servant-client-0.18.1
+  - servant-client-core-0.18.1
+  # Needed for sequelize
+  - named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
   # Needed for beam
   - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
   - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
@@ -32,8 +42,7 @@ extra-deps:
   - tcp-streams-1.0.1.1@sha256:35e9ecfa515797052f8c3c01834d2daebd5e93f3152c7fc98b32652bf6f0c052,2329
   - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
   - mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
-  - record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
-
+  - record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440 
 # MySQL
 # MacOS:
 # Problem: MacOS build failure
@@ -51,3 +60,7 @@ extra-lib-dirs:
 # Linux:
 # sudo apt install mysql-client
 # sudo apt-get install libmysqlclient-dev
+
+nix:
+  enable: false
+  packages: [mysql57, openssl, zlib, postgresql]

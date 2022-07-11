@@ -3,17 +3,20 @@ module SQLDB.Tests.MySQLDBSpec where
 import           EulerHS.Prelude
 
 import           EulerHS.Interpreters
-import           EulerHS.Runtime (withFlowRuntime)
-import           EulerHS.Types
+import           EulerHS.Runtime (FlowRuntime, withFlowRuntime)
+import           EulerHS.Types hiding (error)
 
+import           SQLDB.TestData.Connections (connectOrFail)
 import           SQLDB.TestData.Scenarios.MySQL
 import           SQLDB.TestData.Types
-import qualified Database.Beam.MySQL as BM
 
 import           Test.Hspec hiding (runIO)
 
+import qualified Database.Beam.MySQL as BM
+import           Database.MySQL.Base
 import           EulerHS.Language
 import qualified EulerHS.Types as T
+import           System.Process
 
 import           EulerHS.Extra.Test
 
@@ -31,6 +34,7 @@ mySQLCfg = T.MySQLConfig
   , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
+  , connectCharset  = Latin1
   }
 
 mySQLRootCfg :: T.MySQLConfig
@@ -44,18 +48,15 @@ mySQLRootCfg =
   where
     T.MySQLConfig {..} = mySQLCfg
 
-mkMysqlConfig :: T.MySQLConfig -> T.DBConfig BM.MySQLM
 mkMysqlConfig = T.mkMySQLConfig "eulerMysqlDB"
 
-poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
   , resourcesPerStripe = 50
   }
 
-mkMysqlPoolConfig :: T.MySQLConfig -> DBConfig BM.MySQLM
-mkMysqlPoolConfig cfg = mkMySQLPoolConfig "eulerMysqlDB" cfg poolConfig
+mkMysqlPoolConfig mySQLCfg = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
 
 spec :: Spec
 spec = do
@@ -138,3 +139,5 @@ spec = do
 
   around (prepare mkMysqlPoolConfig) $
     describe "EulerHS MySQL DB tests. Pool" $ test $ mkMysqlPoolConfig mySQLCfg
+
+

@@ -1,16 +1,3 @@
-{- |
-Module      :  EulerHS.Framework.Runtime
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
-License     :  Apache 2.0 (see the file LICENSE)
-Maintainer  :  opensource@juspay.in
-Stability   :  experimental
-Portability :  non-portable
-
-This module contains functions and types to work with `FlowRuntime`.
-
-This is an internal module. Import EulerHS.Runtime instead.
--}
-
 module EulerHS.Framework.Runtime
   (
     -- * Framework Runtime
@@ -39,36 +26,7 @@ import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 
 
-{- | FlowRuntime state and options.
-
-`FlowRuntime` is a structure that stores operational data of the framework,
-such as native connections, internal state, threads, and other things
-needed to run the framework.
-
-@
-import qualified EulerHS.Types as T
-import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime as R
-import qualified EulerHS.Interpreters as R
-
-myFlow :: L.Flow ()
-myFlow = L.runIO $ putStrLn @String "Hello there!"
-
-runApp :: IO ()
-runApp = do
-  let mkLoggerRt = R.createLoggerRuntime T.defaultFlowFormatter T.defaultLoggerConfig
-  R.withFlowRuntime (Just mkLoggerRt)
-    $ \flowRt -> R.runFlow flowRt myFlow
-@
-
-Typically, you need only one instance of `FlowRuntime` in your project.
-You can run your flows with this instance in parallel, it should be thread-safe.
-
-It's okay to pass `FlowRuntime` here and there, but avoid changing its data.
-Only the framework has a right to update those fields.
-
-Mutating any of its data from the outside will lead to an undefined behavior.
--}
+-- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
   { _coreRuntime              :: R.CoreRuntime
   -- ^ Contains logger settings
@@ -80,8 +38,6 @@ data FlowRuntime = FlowRuntime
   -- ^ Typed key-value storage
   , _kvdbConnections          :: MVar (Map Text T.NativeKVDBConn)
   -- ^ Connections for key-value databases
-  , _runMode                  :: T.RunMode
-  -- ^ ART mode in which current flow runs
   , _sqldbConnections         :: MVar (Map T.ConnTag T.NativeSqlPool)
   -- ^ Connections for SQL databases
   , _pubSubController         :: RD.PubSubController
@@ -105,16 +61,12 @@ createFlowRuntime coreRt = do
     , _httpClientManagers       = Map.empty
     , _options                  = optionsVar
     , _kvdbConnections          = kvdbConnections
-    , _runMode                  = T.RegularMode
+    -- , _runMode                  = T.RegularMode
     , _sqldbConnections         = sqldbConnections
     , _pubSubController         = pubSubController
     , _pubSubConnection         = Nothing
     }
 
--- | Create a flow runtime. This function takes a creation function for `LoggerRuntime`.
---
--- Normally, you should not create `LoggerRuntime` manually, but rather delegate its creation
--- to this function and like.
 createFlowRuntime' :: Maybe (IO R.LoggerRuntime) -> IO FlowRuntime
 createFlowRuntime' Nothing = R.createVoidLoggerRuntime >>= R.createCoreRuntime >>= createFlowRuntime
 createFlowRuntime' (Just loggerRtCreator) = loggerRtCreator >>= R.createCoreRuntime >>= createFlowRuntime
@@ -133,9 +85,20 @@ clearFlowRuntime FlowRuntime{..} = do
   -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
 
--- | Returns True if the logger option "log raw SQL queries as debug messages" set.
 shouldFlowLogRawSql :: FlowRuntime -> Bool
 shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
+
+sqlDisconnect :: T.NativeSqlPool -> IO ()
+sqlDisconnect = \case
+  T.NativePGPool connPool -> DP.destroyAllResources connPool
+  T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
+  T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
+  T.NativeMockedPool -> pure ()
+
+kvDisconnect :: T.NativeKVDBConn -> IO ()
+kvDisconnect = \case
+  T.NativeKVDBMockedConn -> pure ()
+  T.NativeKVDB conn -> RD.disconnect conn
 
 -- | Run flow with given logger runtime creation function.
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a
@@ -147,8 +110,6 @@ withFlowRuntime (Just loggerRuntimeCreator) actionF =
   bracket loggerRuntimeCreator R.clearLoggerRuntime $ \loggerRt ->
   bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt ->
   bracket (createFlowRuntime coreRt) clearFlowRuntime actionF
-
--- * Experimental PubSub mechanism bits.
 
 -- Use {-# NOINLINE foo #-} as a pragma on any function foo that calls unsafePerformIO.
 -- If the call is inlined, the I/O may be performed more than once.
@@ -194,23 +155,3 @@ runPubSubWorker rt log = do
       killThread threadId
       putMVar pubSubWorkerLock ()
       log $ "Publish/Subscribe worker: Killed"
-
--- * Internal functions
-
--- | Disconnect from a SQL DB.
---
--- Internal function, should not be used in the business logic.
-sqlDisconnect :: T.NativeSqlPool -> IO ()
-sqlDisconnect = \case
-  T.NativePGPool connPool -> DP.destroyAllResources connPool
-  T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
-  T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  T.NativeMockedPool -> pure ()
-
--- | Disconnect from an KV DB.
---
--- Internal function, should not be used in the business logic.
-kvDisconnect :: T.NativeKVDBConn -> IO ()
-kvDisconnect = \case
-  T.NativeKVDBMockedConn -> pure ()
-  T.NativeKVDB conn -> RD.disconnect conn
