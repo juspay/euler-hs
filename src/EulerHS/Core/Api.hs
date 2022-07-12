@@ -1,6 +1,19 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+{- |
+Module      :  EulerHS.Core.Api
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains implementation of the low-level HTTP client subsystem.
+
+This is an internal module. Import EulerHS.Types instead.
+-}
+
 
 module EulerHS.Core.Api where
 import           EulerHS.Prelude

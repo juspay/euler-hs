@@ -1,3 +1,16 @@
+{- |
+Module      :  EulerHS.Core.Types
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module reexports general functions and types of the framework.
+
+This is an internal module. Import EulerHS.Types instead.
+-}
+
 module EulerHS.Core.Types
   ( module X
   ) where

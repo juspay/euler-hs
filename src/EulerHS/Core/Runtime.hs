@@ -1,3 +1,16 @@
+{- |
+Module      :  EulerHS.Core.Runtime
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains functions and types to work with `CoreRuntime`.
+
+This is an internal module. Import EulerHS.Runtime instead.
+-}
+
 module EulerHS.Core.Runtime
   (
     -- * Core Runtime

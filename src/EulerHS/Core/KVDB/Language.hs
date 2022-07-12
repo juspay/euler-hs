@@ -2,6 +2,23 @@
 {-# LANGUAGE DerivingStrategies    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
+{- |
+Module      :  EulerHS.Core.KVDB.Language
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+Language of the KV DB subsystem.
+
+Currently, highly resembles the `hedis` library interface to Redis.
+Other KV DBs are not yet supported.
+
+This module is internal and should not imported in the projects.
+Import 'EulerHS.Language' instead.
+-}
+
 module EulerHS.Core.KVDB.Language
   (
   -- * KVDB language

@@ -3,6 +3,26 @@
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+{- |
+Module      :  EulerHS.Core.Types.DB
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains general DB-related types and helper functions.
+
+This module is internal and should not imported in the projects.
+
+Import 'EulerHS.Types' instead.
+
+Types and helpers for specific databases can be found in separate modules:
+
+'EulerHS.Core.Types.MySQL'
+'EulerHS.Core.Types.Postgres'
+-}
+
 module EulerHS.Core.Types.DB
   (
     -- * Core DB

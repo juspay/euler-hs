@@ -2,6 +2,20 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
 
+{- |
+Module      :  EulerHS.Core.Types.MySQL
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+Types and helper functions to wrap a MySQL-related stuff.
+
+This module is internal and should not imported in the projects.
+Import 'EulerHS.Types' instead.
+-}
+
 module EulerHS.Core.Types.MySQL
   (
     -- * Core MySQL

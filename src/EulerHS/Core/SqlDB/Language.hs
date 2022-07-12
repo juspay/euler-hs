@@ -3,6 +3,22 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
+{- |
+Module      :  EulerHS.Core.SqlDB.Language
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+Language of the SQL DB subsystem.
+
+Uses `beam` as relational DBs connector.
+
+This module is internal and should not imported in the projects.
+Import 'EulerHS.Language' instead.
+-}
+
 module EulerHS.Core.SqlDB.Language
   (
   -- * SQLDB language
@@ -30,8 +46,10 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
 
 
+-- | Language of the SQL DB subsytem.
 type SqlDB beM = F (SqlDBMethodF beM)
 
+-- | Algebra of the SQL DB subsytem.
 data SqlDBMethodF (beM :: Type -> Type) next where
   SqlDBMethod :: HasCallStack => (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
 
@@ -41,6 +59,7 @@ instance Functor (SqlDBMethodF beM) where
   fmap f (SqlDBMethod runner next) = SqlDBMethod runner (f . next)
   fmap f (SqlThrowException message next) = SqlThrowException message (f . next)
 
+-- | Wrapping helper
 sqlDBMethod
   :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
   => beM a
@@ -106,12 +125,14 @@ deleteRows = sqlDBMethod . T.rtDelete
 
 -- Postgres only extra methods
 
+-- | Postgres-only DELETE query (returning list)
 deleteRowsReturningListPG
   :: (HasCallStack, B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
   => B.SqlDelete BP.Postgres table
   -> SqlDB BP.Pg [table Identity]
 deleteRowsReturningListPG = sqlDBMethod . T.deleteReturningListPG
 
+-- | Postgres-only UPDATE query (returning list)
 updateRowsReturningListPG
   :: (HasCallStack, B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
   => B.SqlUpdate BP.Postgres table
@@ -119,6 +140,10 @@ updateRowsReturningListPG
 updateRowsReturningListPG = sqlDBMethod . T.updateReturningListPG
 
 -- MySQL only extra methods
+-- NOTE: This should be run inside a SQL transaction!
+
+-- | MySQL-only INSERT query (returning list)
+--
 -- NOTE: This should be run inside a SQL transaction!
 insertRowReturningMySQL :: (HasCallStack, B.FromBackendRow BM.MySQL (table Identity))
                         => B.SqlInsert BM.MySQL table

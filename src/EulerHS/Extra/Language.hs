@@ -1,3 +1,17 @@
+{- |
+Module      :  EulerHS.Extra.Language
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains additional methods and functions providing extra functionality
+over the stok ones.
+
+This is an internal module. Import `EulerHS.Language` instead.
+-}
+
 module EulerHS.Extra.Language
   ( getOrInitSqlConn
   , getOrInitKVDBConn
@@ -73,10 +87,19 @@ getOrInitKVDBConn cfg = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Set a key's time to live in seconds.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rExpire :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> t -> m (Either T.KVDBReply Bool)
 rExpire cName k t = rExpireB cName (TE.encodeUtf8 k) t
 
+-- | Set a key's time to live in seconds.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rExpireB :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> ByteKey -> t -> m (Either T.KVDBReply Bool)
 rExpireB cName k t = do
@@ -91,10 +114,19 @@ rExpireB cName k t = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Delete a keys.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rDel :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> [TextKey] -> m (Either T.KVDBReply Integer)
 rDel cName ks = rDelB cName (TE.encodeUtf8 <$> ks)
 
+-- | Delete a keys.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rDelB :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> [ByteKey] -> m (Either T.KVDBReply Integer)
 rDelB cName ks = do
@@ -109,10 +141,20 @@ rDelB cName ks = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Determine if a key exists.
+-- Key is a text string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rExists :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Either T.KVDBReply Bool)
 rExists cName k = rExistsB cName $ TE.encodeUtf8 k
 
+-- | Determine if a key exists.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rExistsB :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> ByteKey -> m (Either T.KVDBReply Bool)
 rExistsB cName k = do
@@ -125,12 +167,22 @@ rExistsB cName k = do
       L.logError @Text "Redis exists" $ show err
       pure res
 
+-- | Determine if a key exists.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rExistsT :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Either T.KVDBReply Bool)
 rExistsT = rExists
 
 -- ----------------------------------------------------------------------------
 
+-- | Get the value of a hash field.
+-- Key is a text string.
+--
+-- Performs decodings of the value.
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rHget :: (HasCallStack, FromJSON v, L.MonadFlow m)
   => RedisName -> TextKey -> TextField -> m (Maybe v)
 rHget cName k f = do
@@ -152,6 +204,11 @@ rHget cName k f = do
       L.logError @Text "Redis rHget" $ show err
       pure Nothing
 
+-- | Get the value of a hash field.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rHgetB :: (HasCallStack, L.MonadFlow m) =>
   Text -> ByteKey -> ByteField -> m (Maybe ByteValue)
 rHgetB cName k f = do
@@ -165,6 +222,10 @@ rHgetB cName k f = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Set the value of a hash field.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rHset :: (HasCallStack, ToJSON v, L.MonadFlow m)
   => RedisName -> TextKey -> TextField -> v -> m (Either T.KVDBReply Bool)
 rHset cName k f v = rHsetB cName k' f' v'
@@ -173,6 +234,11 @@ rHset cName k f v = rHsetB cName k' f' v'
     f' = TE.encodeUtf8 f
     v' = BSL.toStrict $ A.encode v
 
+-- | Set the value of a hash field.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rHsetB :: (HasCallStack, L.MonadFlow m)
   => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either T.KVDBReply Bool)
 rHsetB cName k f v = do
@@ -188,10 +254,19 @@ rHsetB cName k f v = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Increment the integer value of a key by one.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rIncr :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Either T.KVDBReply Integer)
 rIncr cName k = rIncrB cName (TE.encodeUtf8 k)
 
+-- | Increment the integer value of a key by one.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rIncrB :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> ByteKey -> m (Either T.KVDBReply Integer)
 rIncrB cName k = do
@@ -206,6 +281,10 @@ rIncrB cName k = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Set the value of a key.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rSet :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> v -> m (Either T.KVDBReply T.KVDBStatus)
 rSet cName k v = rSetB cName k' v'
@@ -213,6 +292,11 @@ rSet cName k v = rSetB cName k' v'
     k' = TE.encodeUtf8 k
     v' = BSL.toStrict $ A.encode v
 
+-- | Set the value of a key.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rSetB :: (HasCallStack, L.MonadFlow m) =>
   Text -> ByteKey -> ByteValue -> m (Either T.KVDBReply T.KVDBStatus)
 rSetB cName k v = do
@@ -225,6 +309,10 @@ rSetB cName k v = do
       L.logError @Text "Redis set" $ show err
       pure res
 
+-- | Set the value of a key.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rSetT :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> TextKey -> Text -> m (Either T.KVDBReply T.KVDBStatus)
 rSetT cName k v = rSetB cName k' v'
@@ -234,6 +322,11 @@ rSetT cName k v = rSetB cName k' v'
 
 -- ----------------------------------------------------------------------------
 
+-- | Get the value of a key.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rGetB :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> ByteKey -> m (Maybe ByteValue) -- Binary.decode?
 rGetB cName k = do
@@ -244,6 +337,12 @@ rGetB cName k = do
       L.logError @Text "Redis get" $ show err
       pure Nothing
 
+-- | Get the value of a key.
+-- Key is a text string.
+--
+-- Performs encodings of the value.
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
@@ -256,6 +355,10 @@ rGet cName k = do
       Right resp -> pure $ Just resp
     Nothing -> pure Nothing
 
+-- | Get the value of a key.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rGetT :: (HasCallStack, L.MonadFlow m) =>
   Text -> Text -> m (Maybe Text)
 rGetT cName k = do
@@ -272,6 +375,11 @@ rGetT cName k = do
 
 -- ----------------------------------------------------------------------------
 
+-- | Set the value and ttl of a key.
+-- Key is a text string.
+--
+-- Performs encodings of the key and value.
+-- mtl version of the original function.
 rSetex :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
 rSetex cName k v t = rSetexB cName k' v' t
@@ -279,6 +387,11 @@ rSetex cName k v t = rSetexB cName k' v' t
     k' = TE.encodeUtf8 k
     v' = BSL.toStrict $ A.encode v
 
+-- | Set the value and ttl of a key.
+-- Key is a byte string.
+--
+-- mtl version of the original function.
+-- Additionally, logs the error may happen.
 rSetexB :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> ByteKey -> ByteValue -> t -> m (Either T.KVDBReply T.KVDBStatus)
 rSetexB cName k v t = do
@@ -291,6 +404,10 @@ rSetexB cName k v t = do
       L.logError @Text "Redis setex" $ show err
       pure res
 
+-- | Set the value and ttl of a key.
+-- Key is a text string.
+--
+-- mtl version of the original function.
 rSetexT :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
 rSetexT = rSetex

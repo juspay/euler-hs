@@ -1,3 +1,16 @@
+{- |
+Module      :  EulerHS.Framework.Runtime
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains functions and types to work with `FlowRuntime`.
+
+This is an internal module. Import EulerHS.Runtime instead.
+-}
+
 module EulerHS.Framework.Runtime
   (
     -- * Framework Runtime
@@ -26,7 +39,36 @@ import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 
 
--- | FlowRuntime state and options.
+{- | FlowRuntime state and options.
+
+`FlowRuntime` is a structure that stores operational data of the framework,
+such as native connections, internal state, threads, and other things
+needed to run the framework.
+
+@
+import qualified EulerHS.Types as T
+import qualified EulerHS.Language as L
+import qualified EulerHS.Runtime as R
+import qualified EulerHS.Interpreters as R
+
+myFlow :: L.Flow ()
+myFlow = L.runIO $ putStrLn @String "Hello there!"
+
+runApp :: IO ()
+runApp = do
+  let mkLoggerRt = R.createLoggerRuntime T.defaultFlowFormatter T.defaultLoggerConfig
+  R.withFlowRuntime (Just mkLoggerRt)
+    $ \flowRt -> R.runFlow flowRt myFlow
+@
+
+Typically, you need only one instance of `FlowRuntime` in your project.
+You can run your flows with this instance in parallel, it should be thread-safe.
+
+It's okay to pass `FlowRuntime` here and there, but avoid changing its data.
+Only the framework has a right to update those fields.
+
+Mutating any of its data from the outside will lead to an undefined behavior.
+-}
 data FlowRuntime = FlowRuntime
   { _coreRuntime              :: R.CoreRuntime
   -- ^ Contains logger settings

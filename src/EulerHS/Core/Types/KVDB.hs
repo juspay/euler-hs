@@ -2,6 +2,23 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards    #-}
 
+{- |
+Module      :  EulerHS.Core.Types.KVDB
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+Types and helper functions of the KV DB subsystem.
+
+Currently, highly resembles the `hedis` library interface to Redis.
+Other KV DBs are not yet supported.
+
+This module is internal and should not imported in the projects.
+Import 'EulerHS.Types' instead.
+-}
+
 module EulerHS.Core.Types.KVDB
   (
     -- * Core KVDB
