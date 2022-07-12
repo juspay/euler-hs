@@ -1,19 +1,14 @@
 cabal-version: 3.0
 name:          euler-hs
 version:       2.6.0.1
-synopsis:      The Flow framework for Euler.
-homepage:      https://bitbucket.org/juspay/euler-hs
-license:
+synopsis:      The Flow framework for web backends
+license:       Apache-2.0
 author:        Juspay Technologies Pvt Ltd
-maintainer:    koz.ross@juspay.in
-copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
+maintainer:    opensource@juspay.in
+copyright:     (C) Juspay Technologies Pvt Ltd 2019-2022
 category:      Euler
 build-type:    Simple
 tested-with:   GHC ==8.8.3
-
-source-repository head
-  type:     git
-  location: https://bitbucket.org/juspay/euler-hs
 
 common common-lang
   ghc-options:
