@@ -1119,12 +1119,6 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
 logCallStack :: (HasCallStack, MonadFlow m) => m ()
 logCallStack = logDebug ("CALLSTACK" :: Text) $ Text.pack $ prettyCallStack callStack
 
--- customPrettyCallStack :: Int -> CallStack -> String
--- customPrettyCallStack numLines stack =
---   let stackLines = prettyCallStackLines stack
---       lastNumLines = takeEnd numLines stackLines
---    in "CallStack: " ++ intercalate "; " lastNumLines
-
 logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
 logExceptionCallStack ex = logError ("EXCEPTION" :: Text) $ Text.pack $ displayException ex
 

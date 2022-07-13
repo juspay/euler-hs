@@ -111,17 +111,6 @@ data HTTPIOException
     }
   deriving (Eq, Ord, Generic, ToJSON)
 
-
--- Not Used anywhere
--- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
--- getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
---   -- return request body as base64-encoded text (not valid UTF-8)
---   Left e -> Nothing
---   -- return request body as UTF-8 decoded text
---   Right utf8Body -> Just utf8Body
-
-
-
 --------------------------------------------------------------------------
 -- Convenience functions
 --------------------------------------------------------------------------

@@ -3,14 +3,9 @@
 
 module EulerHS.Tests.Framework.DBSetup where
 
--- import           Common (runFlowRecording)
 import           Data.Aeson as A
--- import           Data.Aeson.Encode.Pretty
 import qualified Database.Beam as B
--- import qualified Database.Beam.Backend.SQL as B
--- import qualified Database.Beam.Query as B
 import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
--- import           EulerHS.CachedSqlDBQuery
 import           EulerHS.Interpreters as I
 import           EulerHS.Language as L
 import           EulerHS.Prelude
@@ -112,12 +107,3 @@ connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.getOrInitSqlConn cfg >>= \case
     Left e     -> error $ show e
     Right conn -> pure conn
-
--- runWithSQLConn :: (Show b, Eq b) => Flow b -> IO b
--- runWithSQLConn flow = do
---   (recording, recResult) <- runFlowRecording ($) flow
---   -- putStrLn $ encodePretty $ recording
---   print $ encode recording
---   -- writeFile "recorded" $ show $ encode $ recording
---   -- print recResult
---   pure recResult
