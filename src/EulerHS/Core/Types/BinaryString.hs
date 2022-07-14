@@ -1,3 +1,5 @@
+-- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module EulerHS.Core.Types.BinaryString
 ( BinaryString(..)
 , LBinaryString(..)
@@ -14,6 +16,8 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+
+-- TODO: Move to euler-db
 
 --------------------------------------------------------------------------
 -- Base64 encoding/decoding helpers

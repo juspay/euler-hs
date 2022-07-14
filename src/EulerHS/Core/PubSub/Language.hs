@@ -2,7 +2,7 @@
 
 {- |
 Module      :  EulerHS.Core.PubSub.Language
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
@@ -51,3 +51,5 @@ subscribe channels cb = liftFC $ Subscribe channels cb id
 -- | Subscribe to channels with this pattern
 psubscribe :: [ChannelPattern] -> R.PMessageCallback -> PubSub (IO ())
 psubscribe channels cb = liftFC $ PSubscribe channels cb id
+
+

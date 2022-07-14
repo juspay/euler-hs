@@ -1,6 +1,6 @@
 {- |
 Module      :  EulerHS.Types
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental

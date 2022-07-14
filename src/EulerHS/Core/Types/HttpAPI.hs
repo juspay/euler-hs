@@ -2,7 +2,7 @@
 
 {- |
 Module      :  EulerHS.Core.Types.HttpAPI
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
@@ -25,7 +25,6 @@ module EulerHS.Core.Types.HttpAPI
     , HTTPCert(..)
     , HTTPRequestResponse(HTTPRequestResponse)
     , HTTPIOException(HTTPIOException)
-    , defaultRequest
     , defaultTimeout
     , extractBody
     , httpGet
@@ -33,11 +32,14 @@ module EulerHS.Core.Types.HttpAPI
     , httpPost
     , httpDelete
     , httpHead
+    , defaultRequest
     , withHeader
     , withOptionalHeader
     , withBody
     , withTimeout
     , withRedirects
+    , maskHTTPRequest
+    , maskHTTPResponse
     ) where
 
 import           EulerHS.Prelude                 hiding ((.=), ord)
@@ -51,6 +53,9 @@ import qualified Data.Char                       as Char
 import qualified Data.Map                        as Map
 import           Data.String.Conversions         (convertString)
 import qualified Data.Text.Encoding              as Text
+import           EulerHS.Core.Masking
+import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
+
 
 data HTTPRequest
   = HTTPRequest
@@ -61,7 +66,7 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+    deriving (Eq, Ord, Generic, ToJSON)
 
 data HTTPResponse
   = HTTPResponse
@@ -70,7 +75,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+    deriving (Eq, Ord, Generic, ToJSON)
 
 data HTTPCert
   = HTTPCert
@@ -86,7 +91,7 @@ data HTTPMethod
   | Post
   | Delete
   | Head
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Eq, Ord, Generic, ToJSON)
 
 type HeaderName = Text
 type HeaderValue = Text
@@ -96,7 +101,7 @@ data HTTPRequestResponse
     { request  :: HTTPRequest
     , response :: HTTPResponse
     }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Eq, Ord, Generic, ToJSON)
 
 -- | Used when some IO (or other) exception ocurred during a request
 data HTTPIOException
@@ -104,8 +109,7 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequest
     }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
+  deriving (Eq, Ord, Generic, ToJSON)
 
 --------------------------------------------------------------------------
 -- Convenience functions
@@ -166,6 +170,7 @@ withRedirects :: Int -> HTTPRequest -> HTTPRequest
 withRedirects redirects request =
   request {getRequestRedirects = Just redirects}
 
+-- TODO: Rename to `withFormData` or some such?
 withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
 withBody pairs request = request {getRequestBody = Just body}
   where
@@ -221,3 +226,43 @@ formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encod
         offset
           | n < 10    = 48
           | otherwise = 55
+
+maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequest
+maskHTTPRequest mbMaskConfig request =
+  request
+    { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
+    , getRequestBody = maskedRequestBody
+    }
+  where
+    requestHeaders = getRequestHeaders request
+
+    requestBody = getRequestBody request
+
+    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
+    maskedRequestBody =
+      T.LBinaryString
+        . encodeUtf8
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
+        . LB.toStrict
+        . T.getLBinaryString <$> requestBody
+
+maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponse
+maskHTTPResponse mbMaskConfig response =
+  response
+    { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
+    , getResponseBody = maskedResponseBody
+    }
+  where
+    responseHeaders = getResponseHeaders response
+
+    responseBody = getResponseBody response
+
+    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
+    maskedResponseBody =
+      T.LBinaryString
+        . encodeUtf8
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
+        . LB.toStrict
+        $ T.getLBinaryString responseBody

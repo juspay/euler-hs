@@ -17,7 +17,7 @@ import           System.Process
 
 mwhen :: Monoid m => Bool -> m -> m
 mwhen True  = id
-mwhen False = const mempty
+mwnen False = const mempty
 
 
 withMysqlDb :: String -> String -> MySQLConfig -> IO a -> IO a
@@ -78,6 +78,7 @@ preparePostgresDB filePath pgRootCfg pgCfg@T.PostgresConfig{..} pgCfgToDbCfg wit
           createTestDb :: IO ()
           createTestDb = do
             void $ PG.execute_ rootConn "create database euler_test_db"
+            -- void $ execute_ rootConn "grant all privileges on euler_test_db.* to 'cloud'@'%'"
 
         bracket_
           (dropTestDbIfExist >> createTestDb)

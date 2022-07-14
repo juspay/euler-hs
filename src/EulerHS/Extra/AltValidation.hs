@@ -30,6 +30,7 @@ module EulerHS.Extra.AltValidation
 import           EulerHS.Prelude hiding (or, pred)
 import qualified Prelude as P
 
+import           Data.Data hiding (typeRep)
 import           Data.Either.Extra (mapLeft)
 import           Data.Generics.Product.Fields
 import qualified Data.Text as T
@@ -63,6 +64,7 @@ type Ctx = Text
 type Errors = [VErrorPayload]
 type V a = Validation [VErrorPayload] a
 
+-- TODO: Looks like Profunctor. Does it hold laws?
 -- | Represents Transformer from one type to another.
 
 --- | This class represents transformation abilities between types.
@@ -104,19 +106,22 @@ guardedCustom err pred | pred      = ReaderT (\_   -> pure ())
                  | otherwise = ReaderT (\ctx -> Left [err {error_field = Just ctx }])
 
 -- | Trying to decode 'Text' into a target type
-decode :: forall t . (Read t) => Transformer Text t
+decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
   _      -> Left [ validationError { error_message = Just ("Can't decode value: " <> v)
                        , error_field = Just ctx}])
 
 -- | Trying to decode 'Text' into a target type, use custom error
-decodeCustom :: forall t . (Read t) => VErrorPayload -> Transformer Text t
+decodeCustom :: forall t . (Data t, Read t) => VErrorPayload -> Transformer Text t
 decodeCustom err v = ReaderT (\_ -> case (readMaybe $ toString v) of
   Just x -> Right x
   _      -> Left [ err ])
+-- Could throw 'Data.Data.dataTypeConstrs is not supported for Prelude.Double' for primitive types!
+--  _      -> Left [ err { error_message = Just ("Can't decode value" <> v <> ", should be one of " <> showConstructors @t)
+--                       , error_field = Just ctx}])
 
-mkTransformer :: VErrorPayload -> (a -> Maybe b) -> Transformer a b
+mkTransformer :: Show a => VErrorPayload -> (a -> Maybe b) -> Transformer a b
 mkTransformer err f v = ReaderT (\_ -> case f v of
   Just x  -> Right x
   Nothing -> Left [ err ])
@@ -143,7 +148,7 @@ extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)
 -- | Extract value and run validators on it
 withField
   :: forall (f :: Symbol) v r a
-   . (HasField' f r v, KnownSymbol f)
+   . (Generic r, HasField' f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
 
@@ -154,6 +159,14 @@ runParser
   -> Text
   -> Validation Errors a
 runParser p err = fromEither $ runReaderT p err
+
+-- | Return text representation of constructors of a given type
+-- showConstructors :: forall t . Data t => Text
+-- showConstructors = T.pack $ show $ getConstructors @t
+
+-- | Return list with constructors of a given type
+-- getConstructors :: forall t . Data t => [Constr]
+-- getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
 
 -- | Return given 'Symbol' as 'Text'
 -- >>> fieldName @"userId"

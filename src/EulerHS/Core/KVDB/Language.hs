@@ -1,11 +1,10 @@
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE DerivingStrategies    #-}
-{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 {- |
 Module      :  EulerHS.Core.KVDB.Language
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
@@ -46,74 +45,50 @@ module EulerHS.Core.KVDB.Language
   , hsetTx, hgetTx
   , xaddTx, xlenTx
   , expireTx
+  -- *** Set
+  , sadd
+  , sismember
+  -- *** Raw
+  , rawRequest
   ) where
 
-import qualified Data.Aeson as A
 import qualified Database.Redis as R
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (get)
 
--- | TTL options for the `set` operaion
 data KVDBSetTTLOption
   = NoTTL
-    -- ^ No TTL
   | Seconds Integer
-    -- ^ TTL in seconds
   | Milliseconds Integer
-    -- ^ TTL in millisecons
   deriving stock Generic
-  deriving anyclass A.ToJSON
 
--- | Options for the `set` operation
 data KVDBSetConditionOption
   = SetAlways
-    -- ^ Set value no matter what
   | SetIfExist
-    -- ^ Set if exist
   | SetIfNotExist
-    -- ^ Set if not exist
   deriving stock Generic
-  deriving anyclass A.ToJSON
 
--- | Raw key value (ByteString)
 type KVDBKey = ByteString
-
--- | Raw value (ByteString)
 type KVDBValue = ByteString
-
--- | Duration (seconds)
 type KVDBDuration = Integer
-
--- | Field
 type KVDBField = ByteString
-
--- | Channel
 type KVDBChannel = ByteString
-
--- | Message
 type KVDBMessage = ByteString
 
--- | Stream
 type KVDBStream = ByteString
 
--- | ID of a stream entity
 data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
   deriving stock Generic
-  deriving anyclass (A.ToJSON, A.FromJSON)
 
--- | Input of a stream entity
 data KVDBStreamEntryIDInput
   = EntryID KVDBStreamEntryID
   | AutoID
   deriving stock Generic
-  deriving anyclass A.ToJSON
 
--- | Stream item
 type KVDBStreamItem = (ByteString, ByteString)
 
 ----------------------------------------------------------------------
 
--- | Algebra of the KV DB language
 data KeyValueF f next where
   Set     :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
   SetEx   :: KVDBKey -> KVDBDuration -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
@@ -127,6 +102,9 @@ data KeyValueF f next where
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
+  SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
+  Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
   fmap f (Set k value next)              = Set k value (f . next)
@@ -141,40 +119,36 @@ instance Functor (KeyValueF f) where
   fmap f (HGet k field next)             = HGet k field (f . next)
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
+  fmap f (SAdd k v next)                 = SAdd k v (f . next)
+  fmap f (SMem k v next)                 = SMem k v (f . next)
+  fmap f (Raw args next)                 = Raw args (f . next)
 
--- | KV DB transactional monadic language
 type KVDBTx = F (KeyValueF R.Queued)
 
 ----------------------------------------------------------------------
 
--- | Algebra of the transactional evaluation
--- ('Exec' in hedis notaion)
 data TransactionF next where
   MultiExec
-    :: T.JSONEx a
-    => KVDBTx (R.Queued a)
+    :: KVDBTx (R.Queued a)
     -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
   MultiExecWithHash
-    :: T.JSONEx a
-    => ByteString
+    :: ByteString
     -> KVDBTx (R.Queued a)
     -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
 
 instance Functor TransactionF where
-  fmap f (MultiExec dsl next) = MultiExec dsl (f . next)
+  fmap f (MultiExec dsl next)           = MultiExec dsl (f . next)
   fmap f (MultiExecWithHash h dsl next) = MultiExecWithHash h dsl (f . next)
 
 ----------------------------------------------------------------------
 
--- | Top-level algebra combining either a transactional or regular language method
 data KVDBF next
   = KV (KeyValueF T.KVDBAnswer next)
   | TX (TransactionF next)
   deriving Functor
 
--- | Main KV DB language
 type KVDB next = ExceptT T.KVDBReply (F KVDBF) next
 
 ----------------------------------------------------------------------
@@ -206,14 +180,13 @@ delTx ks = liftFC $ Del ks id
 expireTx :: KVDBKey -> KVDBDuration -> KVDBTx (R.Queued Bool)
 expireTx key sec = liftFC $ Expire key sec id
 
--- | Add entities to a stream
 xaddTx :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDBTx (R.Queued KVDBStreamEntryID)
 xaddTx stream entryId items = liftFC $ XAdd stream entryId items id
 
--- | Get length of a stream
 xlenTx :: KVDBStream -> KVDBTx (R.Queued Integer)
 xlenTx stream = liftFC $ XLen stream id
 
+---
 -- | Set the value of a key
 set :: KVDBKey -> KVDBValue -> KVDB T.KVDBStatus
 set key value = ExceptT $ liftFC $ KV $ Set key value id
@@ -222,7 +195,6 @@ set key value = ExceptT $ liftFC $ KV $ Set key value id
 setex :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDB T.KVDBStatus
 setex key ex value = ExceptT $ liftFC $ KV $ SetEx key ex value id
 
--- | Specify set operation options
 setOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> KVDB Bool
 setOpts key value ttl cond = ExceptT $ liftFC $ KV $ SetOpts key value ttl cond id
 
@@ -254,18 +226,33 @@ hset key field value = ExceptT $ liftFC $ KV $ HSet key field value id
 hget :: KVDBKey -> KVDBField -> KVDB (Maybe ByteString)
 hget key field = ExceptT $ liftFC $ KV $ HGet key field id
 
--- | Add entities to a stream
 xadd :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDB KVDBStreamEntryID
 xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 
--- | Get length of a stream
 xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 
+-- | Add one or more members to a set
+sadd :: KVDBKey -> [KVDBValue] -> KVDB Integer
+sadd setKey setmem = ExceptT $ liftFC $ KV $ SAdd setKey setmem id
+
+sismember :: KVDBKey -> KVDBKey -> KVDB Bool
+sismember key member = ExceptT $ liftFC $ KV $ SMem key member id
+
 -- | Run commands inside a transaction(suited only for standalone redis setup).
-multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExec :: KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
 
 -- | Run commands inside a transaction(suited only for cluster redis setup).
-multiExecWithHash :: T.JSONEx a => ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
+
+-- | Perform a raw call against the underlying Redis data store. This is
+-- definitely unsafe, and should only be used if you know what you're doing.
+--
+-- /See also:/ The
+-- [Hedis function](http://hackage.haskell.org/package/hedis-0.12.8/docs/Database-Redis.html#v:sendRequest) this is based on.
+--
+-- @since 2.0.3.2
+rawRequest :: (R.RedisResult a) => [ByteString] -> KVDB a
+rawRequest args = ExceptT . liftFC . KV . Raw args $ id

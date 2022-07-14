@@ -1,6 +1,6 @@
 {- |
 Module      :  EulerHS.Core.Types
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
@@ -26,7 +26,6 @@ module EulerHS.Framework.Language
     X.callAPI',
     X.callHTTP,
     X.runIO,
-    X.runUntracedIO,
     X.forkFlow,
     X.forkFlow',
     X.unpackLanguagePubSub,

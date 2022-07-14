@@ -1,10 +1,10 @@
 module EulerHS.Extra.Aeson
-  ( stripLensPrefixOptions
-  , stripAllLensPrefixOptions
-  , jsonSetField
-  , encodeJSON
-  , decodeJSON
-  ) where
+( stripLensPrefixOptions
+, stripAllLensPrefixOptions
+, jsonSetField
+, encodeJSON
+, decodeJSON
+) where
 
 import           Prelude
 
@@ -16,6 +16,7 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LazyText
+
 
 stripLensPrefixOptions :: Options
 stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }

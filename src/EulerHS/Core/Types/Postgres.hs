@@ -3,7 +3,7 @@
 
 {- |
 Module      :  EulerHS.Core.Types.Postgres
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
@@ -29,7 +29,7 @@ import           EulerHS.Prelude
 
 import qualified Database.Beam.Postgres as BP
 
--- | Postgres config
+
 data PostgresConfig = PostgresConfig
   { connectHost     :: String
   , connectPort     :: Word16
@@ -49,3 +49,4 @@ createPostgresConn = BP.connect . toBeamPostgresConnectInfo
 -- | Close the given connection.
 closePostgresConn :: BP.Connection -> IO ()
 closePostgresConn = BP.close
+

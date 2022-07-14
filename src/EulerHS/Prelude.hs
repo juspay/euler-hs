@@ -1,22 +1,22 @@
 {-# OPTIONS -fno-warn-orphans #-}
-{-# OPTIONS -fno-warn-unused-imports #-}
 
 {- |
 Module      :  EulerHS.Prelude
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
 Portability :  non-portable
 
 Custom prelude based on @universum@ by Serokell.
+
 In contrast with the latter, it exports unsafe versions of such functions as
 @head@, @last@ etc. It also has some other tiny changes here and there.
 You may want to get familiar with the @universum@ documentation first.
 -}
 
-
 module EulerHS.Prelude
+  -- TODO: This entire export lists needs to be explicit
   ( module X
   , liftFC
   , catchAny

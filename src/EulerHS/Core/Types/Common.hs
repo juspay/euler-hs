@@ -1,6 +1,6 @@
 {- |
 Module      :  EulerHS.Core.Types.Common
-Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2021
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
 License     :  Apache 2.0 (see the file LICENSE)
 Maintainer  :  opensource@juspay.in
 Stability   :  experimental
@@ -14,11 +14,17 @@ Import 'EulerHS.Types' instead.
 
 module EulerHS.Core.Types.Common
   (
+    -- * Guid for any flow
     FlowGUID
+    -- * Guid for a forked flow
   , ForkGUID
+    -- * Guid for a safe flow
   , SafeFlowGUID
+    -- * Network manager selector
   , ManagerSelector
+    -- * Description type
   , Description
+    -- * A variable for await results from a forked flow
   , Awaitable (..)
   , Microseconds (..)
   ) where
@@ -31,8 +37,8 @@ import           EulerHS.Prelude
   -- for each flow.
 type FlowGUID = Text
 
--- | Guid for a forked flow.
--- Service type, rarely needed in the business logic.
+  -- | Guid for a forked flow.
+  -- Service type, rarely needed in the business logic.
 type ForkGUID = Text
 
   -- | Guid for a safe flow.
@@ -46,11 +52,8 @@ type ManagerSelector = String
 
   -- | Description type
 type Description = Text
-
+  
   -- | Awaitable object. Ask it for results from forked flow.
 data Awaitable s = Awaitable (MVar s)
-
   -- | Wrapper for microseconds.
-newtype Microseconds
-  = Microseconds W.Word32
-  -- ^ Max timeout ~71 minutes with Word32
+data Microseconds = Microseconds W.Word32 -- Max timeout ~71 minutes with Word32

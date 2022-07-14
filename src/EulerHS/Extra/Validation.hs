@@ -25,6 +25,7 @@ module EulerHS.Extra.Validation
 import           EulerHS.Prelude hiding (or, pred)
 import qualified Prelude as P
 
+import           Data.Data hiding (typeRep)
 import           Data.Generics.Product.Fields
 import qualified Data.Text as T
 import           Data.Validation
@@ -37,6 +38,7 @@ type Ctx = Text
 type Errors = [Text]
 type V a = Validation [Text] a
 
+-- TODO: Looks like Profunctor. Does it hold laws?
 -- | Represents Transformer from one type to another.
 
 --- | This class represents transformation abilities between types.
@@ -59,9 +61,10 @@ guarded err pred | pred      = ReaderT (\_   -> pure ())
                  | otherwise = ReaderT (\ctx -> Left [ctx <> " " <> err])
 
 -- | Trying to decode Text to target type
-decode :: forall t . Read t => Transformer Text t
+decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
+--  _      -> Left ["Can't decode " <> v <> " from field " <> ctx <> ", should be one of " <> showConstructors @t])
   _      -> Left ["Can't decode " <> v <> " from field " <> ctx])
 
 mkTransformer :: Text -> (a -> Maybe b) -> Transformer a b
@@ -84,7 +87,7 @@ extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)
 -- | Extract value and run validators on it
 withField
   :: forall (f :: Symbol) v r a
-   . (HasField' f r v, KnownSymbol f)
+   . (Generic r, HasField' f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
 
@@ -95,6 +98,14 @@ runParser
   -> Text
   -> Validation Errors a
 runParser p msg = fromEither $ runReaderT p msg
+
+-- | Return text representation of constructors of a given type
+-- showConstructors :: forall t . Data t => Text
+-- showConstructors = T.pack $ show $ getConstructors @t
+
+-- | Return list with constructors of a given type
+-- getConstructors :: forall t . Data t => [Constr]
+-- getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
 
 -- | Return given 'Symbol' as 'Text'
 -- >>> fieldName @"userId"

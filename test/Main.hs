@@ -1,42 +1,34 @@
-module Main where
+{-# OPTIONS_GHC -Werror #-}
 
-import           EulerHS.Prelude
-import           Test.Hspec
+module Main (main) where
 
-import qualified EulerHS.Tests.Framework.ArtSpec as Art
-import qualified EulerHS.Tests.Framework.FlowSpec as Framework
-import qualified EulerHS.Tests.Framework.KVDBArtSpec as KVDB
-import qualified EulerHS.Tests.Framework.PubSubSpec as PubSub
-import qualified EulerHS.Tests.Framework.SQLArtSpec as SQL
+import           EulerHS.Prelude hiding (bracket)
 import qualified EulerHS.Types as T
-
-import System.Process
-
-withRedis :: IO () -> IO ()
-withRedis action = do
-  cmdHandle <- spawnCommand "redis-server"
-  action
-  terminateProcess cmdHandle
-
-logsEnabled :: Maybe T.LoggerConfig
-logsEnabled = Just $ T.LoggerConfig
-  { T._logToFile = False,
-    T._logFilePath = "",
-    T._isAsync = False,
-    T._logLevel = T.Debug,
-    T._logToConsole = True,
-    T._maxQueueSize = 1000,
-    T._logRawSql = False
-  }
-
-logsDisabled :: Maybe T.LoggerConfig
-logsDisabled = Nothing
+import qualified EulerHS.Tests.Framework.FlowSpec as Flow
+import qualified EulerHS.Tests.Framework.MaskingSpec as MaskSpec
+import           Test.Hspec (hspec)
 
 main :: IO ()
 main = do
-  withRedis $ hspec $ do
-    Framework.spec logsDisabled
-    Art.spec
-    KVDB.spec
-    SQL.spec
-    PubSub.spec
+  -- Redis not works on CI
+  -- withRedis $
+  hspec $ do
+    Flow.spec logsDisabled
+    MaskSpec.spec
+
+    -- Wait for Redis on CI
+    -- CachedSqlDBQuery.spec
+
+    -- ART removed and these tests not work anymore
+    -- Art.spec
+    -- KVDB.spec
+    -- SQL.spec
+    -- PubSub.spec
+
+
+
+
+-- Helpers
+
+logsDisabled :: Maybe T.LoggerConfig
+logsDisabled = Nothing

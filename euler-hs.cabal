@@ -1,11 +1,11 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.6.0.0
+version:       2.6.0.1
 synopsis:      The Flow framework for web backends
 license:       Apache-2.0
 author:        Juspay Technologies Pvt Ltd
 maintainer:    opensource@juspay.in
-copyright:     (C) Juspay Technologies Pvt Ltd 2019-2021
+copyright:     (C) Juspay Technologies Pvt Ltd 2019-2022
 category:      Euler
 build-type:    Simple
 tested-with:   GHC ==8.8.3
@@ -50,6 +50,7 @@ common common-lang
 library
   import:          common-lang
   exposed-modules:
+    EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
     EulerHS.Extra.Test
     EulerHS.Extra.Validation
@@ -62,17 +63,13 @@ library
   other-modules:
     EulerHS.Core.Api
     EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Entries
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-    EulerHS.Core.Logger.Entries
     EulerHS.Core.Logger.Impl.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
-    EulerHS.Core.Playback.Entries
-    EulerHS.Core.Playback.Machine
-    EulerHS.Core.PubSub.Entries
+    EulerHS.Core.Masking
     EulerHS.Core.PubSub.Interpreter
     EulerHS.Core.PubSub.Language
     EulerHS.Core.Runtime
@@ -88,7 +85,6 @@ library
     EulerHS.Core.Types.Logger
     EulerHS.Core.Types.MySQL
     EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Playback
     EulerHS.Core.Types.Postgres
     EulerHS.Core.Types.Serializable
     EulerHS.Extra.Aeson
@@ -126,16 +122,17 @@ library
     , http-media
     , http-types
     , lens
+    , mason
     , mysql-haskell           ^>=0.8.4.2
+    , named
     , newtype-generics
     , postgresql-simple
     , process
     , profunctors
     , resource-pool
-    , servant-client
-    , servant-client-core
-    -- , servant-client          ^>=0.18.1
-    -- , servant-client-core     ^>=0.18.1
+    , sequelize               ^>=1.1.0.0
+    , servant-client          ^>=0.18.1
+    , servant-client-core     ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions
@@ -161,17 +158,13 @@ test-suite language
   other-modules:
     EulerHS.Core.Api
     EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Entries
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-    EulerHS.Core.Logger.Entries
     EulerHS.Core.Logger.Impl.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
-    EulerHS.Core.Playback.Entries
-    EulerHS.Core.Playback.Machine
-    EulerHS.Core.PubSub.Entries
+    EulerHS.Core.Masking
     EulerHS.Core.PubSub.Interpreter
     EulerHS.Core.PubSub.Language
     EulerHS.Core.Runtime
@@ -187,7 +180,6 @@ test-suite language
     EulerHS.Core.Types.Logger
     EulerHS.Core.Types.MySQL
     EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Playback
     EulerHS.Core.Types.Postgres
     EulerHS.Core.Types.Serializable
     EulerHS.Extra.Aeson
@@ -214,54 +206,59 @@ test-suite language
     EulerHS.Tests.Framework.PubSubSpec
     EulerHS.Tests.Framework.SQLArtSpec
     EulerHS.Types
+    EulerHS.Tests.Framework.CachedDBSpec
+    EulerHS.Tests.Framework.MaskingSpec
 
   build-depends:
     , aeson
     , aeson-pretty
+    , async
     , base64-bytestring
     , base64-bytestring-type
-    , beam-core               ^>=0.9.0.0
+    , beam-core
     , beam-mysql              ^>=1.2.1.0
     , beam-postgres           ^>=0.5.0.0
-    , beam-sqlite             ^>=0.5.0.0
-    , binary
+    , beam-sqlite
     , bytestring
     , case-insensitive
     , cereal
     , connection
     , containers
     , data-default
+    , directory
     , dlist
     , euler-hs
     , exceptions
     , extra
+    , filepath
     , fmt
     , free
+    , generic-arbitrary
     , generic-lens
-    , hedis                   ^>=0.12.8.1
+    , hedis
     , hspec
     , http-client
     , http-client-tls
     , http-media
     , http-types
     , lens
-    , mysql-haskell           ^>=0.8.4.2
+    , named
     , newtype-generics
+    , mysql-haskell           ^>=0.8.4.2
     , postgresql-simple
     , process
     , profunctors
     , QuickCheck
+    , quickcheck-instances
+    , random
     , resource-pool
-    , servant
-    , servant-client
-    , servant-client-core
-    , servant-mock
-    , servant-server
-    -- , servant               ^>=0.18.1
-    -- , servant-client        ^>=0.18.1
-    -- , servant-client-core   ^>=0.18.1
-    -- , servant-mock          ^>=0.8.7
-    -- , servant-server        ^>=0.18.1
+    , safe-exceptions
+    , sequelize
+    , servant               ^>=0.18.1
+    , servant-client        ^>=0.18.1
+    , servant-client-core     ^>=0.18.1
+    , servant-mock          ^>=0.8.7
+    , servant-server        ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions
@@ -270,6 +267,7 @@ test-suite language
     , tinylog
     , tls
     , transformers
+    , typed-process
     , unagi-chan
     , universum
     , unordered-containers

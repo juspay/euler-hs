@@ -6,8 +6,8 @@ module SQLDB.TestData.Types where
 import           EulerHS.Prelude
 import qualified EulerHS.Types as T
 
+
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
 
 -- sqlite3 db
 -- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
@@ -61,7 +61,7 @@ sqliteSequenceDb :: B.DatabaseSettings be SqliteSequenceDb
 sqliteSequenceDb = B.defaultDbSettings
 
 
-data SimpleUser = SimpleUser {firstN :: Text, lastN :: Text}
+data SimpleUser = SimpleUser {first :: Text, last :: Text}
 
 susers :: [SimpleUser]
 susers =
@@ -69,17 +69,10 @@ susers =
   , SimpleUser  "Doe" "John"
   ]
 
-mkUser
-  :: ( B.BeamSqlBackend be
-     , B.SqlValable (B.Columnar f Text)
-     , B.Columnar f Int ~ B.QGenExpr ctxt be s a
-     , B.HaskellLiteralForQExpr (B.Columnar f Text) ~ Text
-     )
-  => SimpleUser
-  -> UserT f
-mkUser SimpleUser {..} = User B.default_ (B.val_ firstN) (B.val_ lastN)
+mkUser SimpleUser {..} = User B.default_ (B.val_ first) (B.val_ last)
 
 
 someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
 someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l
 someUser _ _ _                = False
+

@@ -20,159 +20,111 @@ module EulerHS.Core.Types.Logger
     -- ** Types
       LogLevel(..)
     , BufferSize
+    , MessageBuilder (..)
     , MessageFormatter
     , FlowFormatter
     , LoggerConfig(..)
     , Message
     , Tag
     , PendingMsg(..)
+    , ShouldLogSQL(..)
     , LogEntry (..)
     , Log
+    , LogContext
+    , LogCounter
+    , LogMaskingConfig (..)
+    , MaskKeyType (..)
     -- ** defaults
     , defaultLoggerConfig
     , defaultMessageFormatter
+    , showingMessageFormatter
     , defaultFlowFormatter
+    , builderToByteString
     ) where
 
 import           EulerHS.Prelude
+import           Data.HashSet(HashSet)
 
 import qualified EulerHS.Core.Types.Common as T
 
+-- Currently, TinyLogger is highly coupled with the interface.
+-- Reason: unclear current practice of logging that affects design and performance.
+import qualified System.Logger.Message as LogMsg
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString as BS
+
 -- | Logging level.
-data LogLevel
-  = Debug
-  | Info
-  | Warning
-  | Error
+data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
 
--- | Message type
+data LogMaskingConfig =
+  LogMaskingConfig
+    { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
+    , _maskText      :: Maybe Text
+    , _keyType       :: MaskKeyType
+    } deriving (Generic, Show, Read)
+
+data MessageBuilder
+  = SimpleString String
+  | SimpleText Text
+  | SimpleBS ByteString
+  | SimpleLBS LBS.ByteString
+  | MsgBuilder LogMsg.Builder
+  | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
+
+data MaskKeyType =
+    WhiteListKey
+  | BlackListKey
+  deriving (Generic, Show, Read)
+
+data ShouldLogSQL
+  -- | Log SQL queries, including sensitive data and API keys. Do NOT PR code
+  -- with this enabled, and make sure this doesn't make it into production
+  = UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION
+  -- | omit SQL logs
+  | SafelyOmitSqlLogs
+  deriving (Generic, Show, Read)
+
+type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
 type Message = Text
-
--- | Tag that accompanies every call of `logMessage`, `logInfo` and other functions.
 type Tag = Text
-
--- | The number of a log message in the this run.
---
--- It's 0 for a fresh `LoggerRuntime`, and increases on each logging call.
 type MessageNumber = Int
-
--- | Buffer size of a logger. Can be important in some cases.
 type BufferSize = Int
-
-{- | Formatter of a message.
-
-Can be used to format a particular logging message (wrapped into `PendingMsg`).
-
-The simplest formatter is just `show`.
-@
-import qualified EulerHS.Types as T
-
-simplestFormatter :: T.MessageFormatter
-simplestFormatter = show
-@
--}
-
-type MessageFormatter = PendingMsg -> String
-
-{- | A flow-specific message formatter.
-
-It's a callback that should return a `MessageFormatter` before a message
-goes to the underlying logging library.
-
-In the simplest case, you return the same message formatter for any flow.
-The @FlowGUID@ argument then has no effect.
-
-@
--- flowFormatter :: T.FlowFormatter
-flowFormatter :: Maybe T.FlowGUID -> IO T.MessageFormatter
-flowFormatter _ = pure simplestFormatter
-@
-
-In fact, you can setup your own message formatter for each new flow.
-To do this, you define a callback which is able to track your flows
-and return a particular message formatter.
-
-This logic should be thread-safe.
-
-@
-type FlowsFormatters = MVar (Map T.FlowGUID T.MessageFormatter)
-
-flowsFormatter
-  :: FlowsFormatters
-  -> Maybe T.FlowGUID
-  -> IO T.MessageFormatter
-flowsFormatter flowFsVar Nothing = pure simplestFormatter
-flowsFormatter flowFsVar (Just flowGuid) = do
-  flowFs <- readMVar flowFsVar
-  case Map.lookup flowGuid flowFS of
-    Nothing -> pure simplestFormatter   -- You should decide on what to return here
-    Just formatter -> pure formatter
-@
-
-You can update your formatters map right before and after running a flow.
-There is a special function `runFlow'` to run a flow with a particular GUID.
-
-GUID string can be anything unique across your flows.
--}
-
+type MessageFormatter = PendingMsg -> MessageBuilder
 type FlowFormatter = Maybe T.FlowGUID -> IO MessageFormatter
+type LogContext = HashMap Text Text
 
--- | Config of a logger
 data LoggerConfig
   = LoggerConfig
     { _isAsync      :: Bool
-      -- ^ Is it async.
-      --
-      -- N.B. The async logger feature is not well-tested.
     , _logLevel     :: LogLevel
-      -- ^ System log level
     , _logFilePath  :: FilePath
-      -- ^ Log file path if a file logger is enabled
     , _logToConsole :: Bool
-      -- ^ Enable / disable a console logging.
     , _logToFile    :: Bool
-      -- ^ Enable / disable a file logging
     , _maxQueueSize :: Word
-      -- ^ Allows to configure a logging queue.
-    , _logRawSql    :: Bool
-      -- ^ Enable / disable logging of SQL queries in the SQL DB subsystem.
-      --
-      -- SQL queries will be written as Debug messages.
-      --
-      -- N.B. Enabling this feature slows down the performance of the SQL DB subsystem.
+    , _logRawSql    :: ShouldLogSQL
+    , _logMaskingConfig :: Maybe LogMaskingConfig
     } deriving (Generic, Show, Read)
 
--- | A message to send to the underlying logger subsystem.
---
--- Can be formatted with `MessageFormatter`.
 data PendingMsg = PendingMsg
   !(Maybe T.FlowGUID)
   !LogLevel
   !Tag
   !Message
   !MessageNumber
+  !LogContext
   deriving (Show)
 
-{- | Default message formatter:
-@
-defaultMessageFormatter (PendingMsg _ lvl tag msg _) =
-  "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
-@
--}
-defaultMessageFormatter :: MessageFormatter
-defaultMessageFormatter (PendingMsg _ lvl tag msg _) =
-  "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+data LogEntry = LogEntry !LogLevel !Message
+type Log = [LogEntry]
 
-{- | Default logger config:
-  isAsync = False
-  logLevel = Debug
-  logFilePath = ""
-  logToConsole = True
-  logToFile = False
-  maxQueueSize = 1000
-  logRawSql = True
--}
+defaultMessageFormatter :: MessageFormatter
+defaultMessageFormatter (PendingMsg _ lvl tag msg _ _) =
+  SimpleString $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+
+showingMessageFormatter :: MessageFormatter
+showingMessageFormatter = SimpleString . show
+
 defaultLoggerConfig :: LoggerConfig
 defaultLoggerConfig = LoggerConfig
     { _isAsync = False
@@ -181,18 +133,12 @@ defaultLoggerConfig = LoggerConfig
     , _logToConsole = True
     , _logToFile = False
     , _maxQueueSize = 1000
-    , _logRawSql = True
+    , _logRawSql = SafelyOmitSqlLogs
+    , _logMaskingConfig = Nothing
     }
 
--- | Default flow formatter.
--- Ignores the flow GUID and just returns `defaultMessageFormatter`.
 defaultFlowFormatter :: FlowFormatter
 defaultFlowFormatter _ = pure defaultMessageFormatter
 
--- * Internal types
-
--- | Service type for tracking log entries
-data LogEntry = LogEntry !LogLevel !Message
-
--- | Service type for tracking log entries
-type Log = [LogEntry]
+builderToByteString :: LogMsg.Builder -> LBS.ByteString
+builderToByteString = LogMsg.eval
