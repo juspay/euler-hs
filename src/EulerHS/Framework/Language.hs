@@ -1903,7 +1903,7 @@ instance OptionEntity DBMetricCfg DBAndRedisMetricHandler
 ---------------------------------------------------------
 
 isDBMetricEnabled :: Bool
-isDBMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "DB_METRIC_ENABLED"
+isDBMetricEnabled = fromMaybe False $ readMaybe =<< (Conf.lookupEnvT "DB_METRIC_ENABLED" :: Maybe Text)
 
 ---------------------------------------------------------
 
