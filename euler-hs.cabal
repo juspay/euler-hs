@@ -10,7 +10,7 @@ maintainer:    koz.ross@juspay.in
 copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
 category:      Euler
 build-type:    Simple
-tested-with:   GHC ==8.8.4
+tested-with:   GHC == 8.8.4
 
 source-repository head
   type:     git
@@ -20,13 +20,14 @@ common common-lang
   ghc-options:
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Werror
+    "-Wwarn=ambiguous-fields"
     -fplugin=RecordDotPreprocessor
 
   build-depends:
     , base                     >=4.13   && <5
-    , record-dot-preprocessor  ^>=0.2.14
+    , record-dot-preprocessor
     , record-hasfield
-    , euler-events-hs          ^>=2.0.0
+    , euler-events-hs
 
   default-extensions:
     NoImplicitPrelude
@@ -99,10 +100,10 @@ library
     , QuickCheck
     , aeson
     , base64-bytestring
-    , beam-core             ^>=0.9.0.0
-    , beam-mysql            ^>=1.3.0.4
-    , beam-postgres         ^>=0.5.0.0
-    , beam-sqlite           ^>=0.5.0.0
+    , beam-core
+    , beam-mysql
+    , beam-postgres
+    , beam-sqlite
     , bytestring
     , case-insensitive
     , cereal
@@ -118,7 +119,7 @@ library
     , free
     , generic-deriving
     , generic-lens
-    , hedis                 ^>=0.12.8.1
+    , hedis
     , http-api-data
     , http-client
     , http-client-tls
@@ -126,7 +127,7 @@ library
     , http-types
     , juspay-extra          ^>=1.0.1.5
     , lrucaching
-    , mysql-haskell         ^>=0.8.4.2
+    , mysql-haskell
     , named
     , newtype-generics
     , nonempty-containers
@@ -140,11 +141,11 @@ library
     , reflection
     , resource-pool
     , scientific
-    , sequelize             ^>=1.1.1.0
+    , sequelize
     , servant
-    , servant-client        ^>=0.18.3
-    , servant-client-core   ^>=0.18.3
-    , servant-server        ^>=0.18.3
+    , servant-client
+    , servant-client-core
+    , servant-server
     , sqlite-simple
     , stm
     , store
@@ -215,11 +216,11 @@ test-suite language
     , quickcheck-instances
     , random
     , safe-exceptions
-    , sequelize             ^>=1.1.1.0
-    , servant               ^>=0.18.3
-    , servant-client        ^>=0.18.3
-    , servant-mock          ^>=0.8.7
-    , servant-server        ^>=0.18.3
+    , sequelize
+    , servant
+    , servant-client
+    , servant-mock
+    , servant-server
     , string-conversions
     , text
     , tls
