@@ -9,6 +9,9 @@ import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HS
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -80,7 +83,7 @@ handleObject shouldMask maskText mbContentType = HashMap.mapWithKey maskingFn
     maskingFn key value = bool (maskJSON shouldMask maskText mbContentType value) (Aeson.String maskText) $ shouldMask key
 
 handleQueryString :: ByteString -> Aeson.Value
-handleQueryString strg = Aeson.Object . fmap (Aeson.String . fromMaybe "") . HashMap.fromList $ HTTP.parseQueryText strg
+handleQueryString strg = Aeson.Object . fmap (Aeson.String . fromMaybe "") . KeyMap.fromList . map (Bifunctor.first AesonKey.fromText) $ HTTP.parseQueryText strg
 
 notSupportedPlaceHolder :: Maybe ByteString -> Aeson.Value
 notSupportedPlaceHolder (Just bs) = Aeson.String $ "Logging Not Support For this content " <> decodeUtf8 bs
