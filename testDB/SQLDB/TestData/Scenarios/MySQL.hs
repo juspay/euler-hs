@@ -109,7 +109,7 @@ selectUnknownDbScript dbcfg = do
           $ B.filter_ predicate
           $ B.all_ (_users eulerDb)
 
-selectRowDbScript :: Int -> T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
+selectRowDbScript :: Int64 -> T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
 selectRowDbScript userId dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 

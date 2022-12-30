@@ -19,14 +19,14 @@ import           Sequelize
 -- Prepare custom types for tests
 
 data UserT f = User
-    { _userGUID  :: B.C f Int
+    { _userGUID  :: B.C f Int64
     , _firstName :: B.C f Text
     , _lastName  :: B.C f Text
     } deriving (Generic, B.Beamable)
 
 instance B.Table UserT where
   data PrimaryKey UserT f =
-    UserId (B.C f Int) deriving (Generic, B.Beamable)
+    UserId (B.C f Int64) deriving (Generic, B.Beamable)
   primaryKey = UserId . _userGUID
 
 instance ModelMeta UserT where
