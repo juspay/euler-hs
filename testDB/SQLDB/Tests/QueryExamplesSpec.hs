@@ -11,7 +11,7 @@ import           Database.Beam.Sqlite (SqliteM)
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import qualified EulerHS.Language as L
-import           EulerHS.Prelude hiding (getOption)
+import           EulerHS.Prelude
 import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Runtime as R
 import           EulerHS.Types (_isAsync, _logFilePath, _logToFile,
