@@ -13,14 +13,14 @@ import qualified EulerHS.Types as T
 -- sqlite3 db
 -- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
 data UserT f = User
-    { _userId        :: B.C f Int
+    { _userId        :: B.C f Int64
     , _userFirstName :: B.C f Text
     , _userLastName  :: B.C f Text
     } deriving (Generic, B.Beamable)
 
 instance B.Table UserT where
   data PrimaryKey UserT f =
-    UserId (B.C f Int) deriving (Generic, B.Beamable)
+    UserId (B.C f Int64) deriving (Generic, B.Beamable)
   primaryKey = UserId . _userId
 
 type User = UserT Identity
@@ -43,7 +43,7 @@ eulerDb = B.defaultDbSettings
 
 data SqliteSequenceT f = SqliteSequence
     { _name :: B.C f Text
-    , _seq  :: B.C f Int
+    , _seq  :: B.C f Int64
     } deriving (Generic, B.Beamable)
 
 instance B.Table SqliteSequenceT where
@@ -73,7 +73,7 @@ susers =
 mkUser ::
   (BeamSqlBackend be,
     B.SqlValable (B.Columnar f Text),
-    B.Columnar f Int ~ B.QGenExpr ctxt be s a,
+    B.Columnar f Int64 ~ B.QGenExpr ctxt be s a,
     B.HaskellLiteralForQExpr (B.Columnar f Text) ~ Text) =>
     SimpleUser ->
     UserT f
