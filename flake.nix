@@ -28,12 +28,12 @@
         packages.default = self'.packages.euler-hs;
         haskellProjects.default = {
           imports = [
-            self.haskellFlakeProjectModules.input
+            self.haskellFlakeProjectModules.allOverrides
           ];
           basePackages = config.haskellProjects.ghc810.outputs.finalPackages;
         };
       };
-      flake.haskellFlakeProjectModules.input = { pkgs, lib, ... }: {
+      flake.haskellFlakeProjectModules.allOverrides = { pkgs, lib, ... }: {
         source-overrides = {
           sequelize = inputs.sequelize;
           beam-core = inputs.beam + /beam-core;
