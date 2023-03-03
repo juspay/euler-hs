@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Werror -Wno-redundant-constraints #-}
 
 module EulerHS.Framework.Flow.Interpreter
   ( -- * Flow Interpreter
