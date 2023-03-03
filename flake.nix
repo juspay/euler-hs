@@ -34,8 +34,10 @@
         };
       };
       flake.haskellFlakeProjectModules = rec {
-        output = { pkgs, lib, ... }: withSystem pkgs.system (ctx@{ config, ... }: {
-          imports = [ input ];
+        output = { pkgs, lib, ... }: {
+          imports = [ input local ];
+        };
+        local = { pkgs, lib, ... }: withSystem pkgs.system ({ config, ... }: {
           source-overrides =
             lib.mapAttrs (name: ks: ks.root)
               config.haskellProjects.default.packages;
