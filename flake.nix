@@ -27,22 +27,7 @@
       perSystem = { self', pkgs, lib, config, ... }: {
         packages.default = self'.packages.euler-hs;
         haskellProjects.default = {
-          imports = [
-            self.haskellFlakeProjectModules.input
-          ];
           basePackages = config.haskellProjects.ghc810.outputs.finalPackages;
-        };
-      };
-      flake.haskellFlakeProjectModules = rec {
-        output = { pkgs, lib, ... }: {
-          imports = [ input local ];
-        };
-        local = { pkgs, lib, ... }: withSystem pkgs.system ({ config, ... }: {
-          source-overrides =
-            lib.mapAttrs (name: ks: ks.root)
-              config.haskellProjects.default.packages;
-        });
-        input = { pkgs, lib, ... }: {
           source-overrides = {
             beam-core = inputs.beam + /beam-core;
             beam-migrate = inputs.beam + /beam-migrate;
