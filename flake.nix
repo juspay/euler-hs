@@ -44,40 +44,27 @@
         });
         input = { pkgs, lib, ... }: {
           source-overrides = {
-            sequelize = inputs.sequelize;
             beam-core = inputs.beam + /beam-core;
             beam-migrate = inputs.beam + /beam-migrate;
+            beam-mysql = inputs.beam-mysql;
             beam-postgres = inputs.beam + /beam-postgres;
             beam-sqlite = inputs.beam + /beam-sqlite;
-            beam-mysql = inputs.beam-mysql;
-            mysql-haskell = inputs.mysql-haskell;
             hedis = inputs.hedis;
+            mysql-haskell = inputs.mysql-haskell;
+            sequelize = inputs.sequelize;
           };
-          overrides =
-            let
-              # A function that enables us to write `foo = [ dontCheck ]` instead of `foo =
-              # lib.pipe super.foo [ dontCheck ]` in haskell-flake's `overrides`.
-              compilePipe = f: self: super:
-                lib.mapAttrs
-                  (name: value:
-                    if lib.isList value then
-                      lib.pipe super.${name} value
-                    else
-                      value
-                  )
-                  (f self super);
-            in
-            compilePipe (self: super: with pkgs.haskell.lib.compose; {
-              sequelize = [ dontCheck ];
-
+          overrides = self: super:
+            with pkgs.haskell.lib.compose;
+            lib.mapAttrs (k: v: lib.pipe super.${k} v) {
               beam-core = [ doJailbreak ];
               beam-migrate = [ doJailbreak ];
               beam-mysql = [ dontCheck doJailbreak ];
               beam-postgres = [ dontCheck doJailbreak ];
               beam-sqlite = [ dontCheck doJailbreak ];
-              mysql-haskell = [ dontCheck doJailbreak ];
               hedis = [ dontCheck ];
-            });
+              mysql-haskell = [ dontCheck doJailbreak ];
+              sequelize = [ dontCheck ];
+            };
         };
       };
     });
