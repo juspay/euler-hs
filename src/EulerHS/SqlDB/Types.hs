@@ -3,6 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
+{-# OPTIONS_GHC -Wwarn=incomplete-patterns #-}
 
 module EulerHS.SqlDB.Types
   (
