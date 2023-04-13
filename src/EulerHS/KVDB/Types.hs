@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# OPTIONS_GHC -Wwarn=missing-fields #-}
 
 module EulerHS.KVDB.Types
   (

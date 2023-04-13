@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE DeriveDataTypeable     #-}
+{-# OPTIONS_GHC -Wwarn=incomplete-patterns #-}
 
 module EulerHS.SqlDB.Types
   (
