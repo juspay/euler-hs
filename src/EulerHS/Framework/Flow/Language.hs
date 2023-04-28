@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}

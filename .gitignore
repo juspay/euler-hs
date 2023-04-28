@@ -48,3 +48,7 @@ init/id_rsa
 *~
 
 dump.rdb
+
+# Nix
+result
+.direnv
