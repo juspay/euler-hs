@@ -14,7 +14,7 @@
     beam-mysql.flake = false;
     mysql-haskell.url = "github:juspay/mysql-haskell/788022d65538db422b02ecc0be138b862d2e5cee"; # https://github.com/winterland1989/mysql-haskell/pull/38
     mysql-haskell.flake = false;
-    hedis.url = "github:juspay/hedis/46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80";
+    hedis.url = "github:juspay/hedis/22d814672d8476a6f8fb43047af2897afbf77ac6";
     hedis.flake = false;
   };
   outputs = inputs@{ self, nixpkgs, flake-parts, ... }:

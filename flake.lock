@@ -124,17 +124,17 @@
     "hedis": {
       "flake": false,
       "locked": {
-        "lastModified": 1598534673,
-        "narHash": "sha256-JZUSxloS/Fk2gNk3bMMBq0rjkebPols0IUxWp4gJFPc=",
+        "lastModified": 1681138785,
+        "narHash": "sha256-e3JLqLMtIYUoRMbt4E9SHfIok1WkrQqzn11OOi8JfUM=",
         "owner": "juspay",
         "repo": "hedis",
-        "rev": "46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80",
+        "rev": "22d814672d8476a6f8fb43047af2897afbf77ac6",
         "type": "github"
       },
       "original": {
         "owner": "juspay",
         "repo": "hedis",
-        "rev": "46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80",
+        "rev": "22d814672d8476a6f8fb43047af2897afbf77ac6",
         "type": "github"
       }
     },

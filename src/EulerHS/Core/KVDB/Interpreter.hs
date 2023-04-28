@@ -59,8 +59,12 @@ interpretKeyValueF runRedis (L.Incr k next) =
     runRedis $ R.incr k
 
 interpretKeyValueF runRedis (L.HSet k field value next) =
-  fmap next $
-    runRedis $ R.hset k field value
+  fmap next $ do
+    result <- runRedis $ R.hset k field value
+    pure $ case result of
+      Right 0 -> Right False
+      Right _ -> Right True
+      Left reply -> Left reply
 
 interpretKeyValueF runRedis (L.HGet k field next) =
   fmap next $
@@ -121,7 +125,7 @@ interpretKeyValueTxF (L.Incr k next) =
   next <$> R.incr k
 
 interpretKeyValueTxF (L.HSet k field value next) =
-  next <$> R.hset k field value
+  next . fmap (/= 0) <$> R.hset k field value
 
 interpretKeyValueTxF (L.HGet k field next) =
   next <$> R.hget k field
@@ -159,9 +163,9 @@ interpretTransactionF runRedis (L.MultiExec dsl next) =
   fmap next $
     runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
 
-interpretTransactionF runRedis (L.MultiExecWithHash h dsl next) =
+interpretTransactionF runRedis (L.MultiExecWithHash _ dsl next) =
   fmap next $
-    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExecWithHash h $ foldF interpretKeyValueTxF dsl
+    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl -- according to https://github.com/informatikr/hedis/commit/947b31a4696df81b267fe9a1a33050625374a208 
 
 
 interpretDbF
