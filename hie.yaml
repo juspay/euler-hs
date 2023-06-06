@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "."
+      component: "euler-hs"
+    - path: "src"
+      component: "lib:euler-hs"
+    - path: "test"
+      component: "test:language"
+    - path: "testDB"
+      component: "test:db"

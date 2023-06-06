@@ -1,0 +1,72 @@
+---
+resolver: lts-16.31
+
+packages:
+  - .
+
+extra-deps:
+  - git: https://gitlab.com/aravindvirat/tinylog
+    commit: 72a3534c6b28981179038f006f42456eda554b11
+  - git: https://github.com/juspay/hedis
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
+  - git: https://github.com/juspay/mysql-haskell
+    commit: 788022d65538db422b02ecc0be138b862d2e5cee
+  - git: https://github.com/juspay/bytestring-lexing
+    commit: 0a46db1139011736687cb50bbd3877d223bcb737
+  # Needed for us
+  - servant-0.18.3
+  - servant-mock-0.8.7
+  - servant-server-0.18.3
+  - servant-client-0.18.3
+  - servant-client-core-0.18.3
+  # Needed for sequelize
+  - named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
+  # Needed for beam
+  - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
+  - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
+  - haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
+  - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
+  - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
+  - direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
+  # Needed for beam-mysql
+  - tcp-streams-1.0.1.1@sha256:35e9ecfa515797052f8c3c01834d2daebd5e93f3152c7fc98b32652bf6f0c052,2329
+  - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
+  - mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
+  - record-dot-preprocessor-0.2.14
+  # Need for store
+  - store-0.7.12@sha256:362327372c816f00cff4800d699d7f7ba015fa21fa7b3ad493094ce01b99b2bb,8071
+  - validation-selective-0.1.0.1@sha256:9a5aa8b801efc6a4ffb120e1b28e80c5f7d090043be56bba11222cd20c393044,3621
+  - store-core-0.4.4.4@sha256:a19098ca8419ea4f6f387790e942a7a5d0acf62fe1beff7662f098cfb611334c,1430
+  - th-utilities-0.2.4.1@sha256:b37d23c8bdabd678aee5a36dd4373049d4179e9a85f34eb437e9cd3f04f435ca,1869
+  # Need for tests
+  - hedgehog-1.0.5
+  - tasty-hedgehog-1.1.0.0
+  - tasty-hunit-0.10.0.3
+  - tasty-1.4.2.1
+  - hspec-hedgehog-0.0.1.2@sha256:4d09c7be34cdc941b78e4e964f71013ffeeb099ea32d8ede17ad9c03ae7a62e3,1470
+  # Need for juspay-extra
+  - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
+
+  - constraints-0.11.2@sha256:d173efdf7a5d5515075635c686420211dccd9f85bc091a579ecc18b3f138a5fe,2324
+  - some-1.0.1@sha256:26e5bab7276f48b25ea8660d3fd1166c0f20fd497dac879a40f408e23211f93e,2055
+  # MySQ
+# MacOS:
+# Problem: MacOS build failure
+# >   Configuring mysql-0.1.7...
+# >   setup: Missing dependencies on foreign libraries:
+# >   * Missing (or bad) C libraries: ssl, crypto
+# Possible solution:
+# https://github.com/depressed-pho/HsOpenSSL/issues/41
+# TODO: how to make it portable?
+extra-include-dirs:
+  - /usr/local/opt/openssl/include
+extra-lib-dirs:
+  - /usr/local/opt/openssl/lib
+
+# Linux:
+# sudo apt install mysql-client
+# sudo apt-get install libmysqlclient-dev
+
+nix:
+  enable: false
+  packages: [mysql57, openssl, zlib, postgresql]

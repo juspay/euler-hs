@@ -1,0 +1,286 @@
+cabal-version: 3.0
+name:          euler-hs
+version:       2.13.0.1
+synopsis:      The Flow framework for Euler.
+description:
+homepage:      https://github.com/juspay/euler-hs
+license:
+author:        Juspay Technologies Pvt Ltd
+maintainer:    koz.ross@juspay.in
+copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
+category:      Euler
+build-type:    Simple
+tested-with:   GHC ==8.8.4
+
+source-repository head
+  type:     git
+  location: https://github.com/juspay/euler-hs
+
+common common-lang
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints -Werror
+    -fplugin=RecordDotPreprocessor
+
+  build-depends:
+    , base                     >=4.13   && <5
+    , record-dot-preprocessor  ^>=0.2.14
+    , record-hasfield
+    , euler-events-hs          ^>=2.0.0
+
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DeriveFunctor
+    DeriveGeneric
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedLabels
+    OverloadedStrings
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeSynonymInstances
+    UndecidableInstances
+
+  default-language:   Haskell2010
+
+library
+  import:          common-lang
+  exposed-modules:
+    EulerHS.CachedSqlDBQuery
+    EulerHS.Extra.AltValidation
+    EulerHS.Extra.Aeson
+    EulerHS.Extra.Combinators
+    EulerHS.Extra.EulerDB
+    EulerHS.Extra.Test
+    EulerHS.Extra.Time
+    EulerHS.Extra.Validation
+    EulerHS.Interpreters
+    EulerHS.Language
+    EulerHS.Prelude
+    EulerHS.Runtime
+    EulerHS.Types
+
+  other-modules:
+    EulerHS.Api
+    EulerHS.BinaryString
+    EulerHS.Common
+    EulerHS.Extra.Language
+    EulerHS.Framework.Interpreter
+    EulerHS.Framework.Language
+    EulerHS.Framework.Runtime
+    EulerHS.HttpAPI
+    EulerHS.KVDB.Interpreter
+    EulerHS.KVDB.Language
+    EulerHS.KVDB.Types
+    EulerHS.Logger.Interpreter
+    EulerHS.Logger.Language
+    EulerHS.Logger.Runtime
+    EulerHS.Logger.TinyLogger
+    EulerHS.Logger.Types
+    EulerHS.Masking
+    EulerHS.Options
+    EulerHS.PubSub.Interpreter
+    EulerHS.PubSub.Language
+    EulerHS.SqlDB.Interpreter
+    EulerHS.SqlDB.Language
+    EulerHS.SqlDB.MySQL
+    EulerHS.SqlDB.Postgres
+    EulerHS.SqlDB.Types
+
+  build-depends:
+    , QuickCheck
+    , aeson
+    , base64-bytestring
+    , beam-core             ^>=0.9.0.0
+    , beam-mysql            ^>=1.3.0.4
+    , beam-postgres         ^>=0.5.0.0
+    , beam-sqlite           ^>=0.5.0.0
+    , bytestring
+    , case-insensitive
+    , cereal
+    , connection
+    , containers
+    , ctrie
+    , data-default
+    , dlist
+    , exceptions
+    , extra
+    , fmt
+    , formatting
+    , free
+    , generic-deriving
+    , generic-lens
+    , hedis                 ^>=0.12.8.1
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , juspay-extra          ^>=1.0.1.5
+    , lrucaching
+    , mysql-haskell         ^>=0.8.4.2
+    , named
+    , newtype-generics
+    , nonempty-containers
+    , nonempty-vector
+    , optics-core
+    , pem
+    , postgresql-simple
+    , process
+    , profunctors
+    , random
+    , reflection
+    , resource-pool
+    , scientific
+    , sequelize             ^>=1.1.1.0
+    , servant
+    , servant-client        ^>=0.18.3
+    , servant-client-core   ^>=0.18.3
+    , servant-server        ^>=0.18.3
+    , sqlite-simple
+    , stm
+    , store
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , tls
+    , transformers
+    , unagi-chan
+    , universum
+    , unordered-containers
+    , utf8-string
+    , uuid
+    , validation
+    , validation-selective
+    , vector
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
+
+  hs-source-dirs:  src
+
+test-suite language
+  import:         common-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:
+    ArtSpec
+    CachedDBSpec
+    Client
+    Common
+    DBSetup
+    EulerHS.TestData.Types
+    EulerHS.Testing.Flow.Interpreter
+    EulerHS.Testing.Types
+    HttpAPISpec
+    FlowSpec
+    KVDBArtSpec
+    MaskingSpec
+    PubSubSpec
+    Scenario1
+    SQLArtSpec
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , async
+    , beam-core
+    , beam-sqlite
+    , bytestring
+    , containers
+    , data-default
+    , directory
+    , euler-hs
+    , extra
+    , filepath
+    , generic-arbitrary
+    , generic-lens
+    , hedis
+    , hspec
+    , http-client
+    , http-client-tls
+    , named
+    , process
+    , QuickCheck
+    , quickcheck-instances
+    , random
+    , safe-exceptions
+    , sequelize             ^>=1.1.1.0
+    , servant               ^>=0.18.3
+    , servant-client        ^>=0.18.3
+    , servant-mock          ^>=0.8.7
+    , servant-server        ^>=0.18.3
+    , string-conversions
+    , text
+    , tls
+    , typed-process
+    , unordered-containers
+    , uuid
+    , vector
+    , warp
+    , warp-tls
+    , x509-store
+    , tls
+    , connection
+
+  ghc-options:    -threaded -O2
+  hs-source-dirs: test/language
+
+test-suite db
+  import:         common-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:
+    KVDB.KVDBSpec
+    SQLDB.TestData.Connections
+    SQLDB.TestData.Scenarios.MySQL
+    SQLDB.TestData.Scenarios.Postgres
+    SQLDB.TestData.Scenarios.SQLite
+    SQLDB.TestData.Types
+    SQLDB.Tests.MySQLDBSpec
+    SQLDB.Tests.PostgresDBSpec
+    SQLDB.Tests.QueryExamplesSpec
+    SQLDB.Tests.SQLiteDBSpec
+
+  build-depends:
+    , aeson
+    , beam-core
+    , beam-mysql
+    , beam-postgres
+    , beam-sqlite
+    , bytestring
+    , euler-hs
+    , hspec
+    , mysql-haskell
+    , postgresql-simple
+    , process
+    , servant
+    , servant-mock
+    , time
+
+  hs-source-dirs: testDB
+
+test-suite extra
+  import:         common-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:
+    Options
+
+  build-depends:
+    , aeson
+    , euler-hs
+    , hspec
+    , bytestring
+
+  hs-source-dirs: test/extra
