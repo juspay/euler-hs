@@ -219,7 +219,7 @@ interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientMana
       Just (ManagerSelector mngrName) -> HM.lookup mngrName _httpClientManagers
       Nothing                         -> Just _defaultHttpClientManager
 
-interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
+interpretFlowMethod mbFlowGuid flowRt (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
@@ -262,7 +262,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
           pure (LRU.insert settings mgr _cache, mgr)
 
 
-interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =
+interpretFlowMethod _ flowRt (L.CallHTTP request manager next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
       start <- systemToTAITime <$> getSystemTime
@@ -371,10 +371,10 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.ReleaseConfigLock k next) =
     putMVar _configCacheLock m
     return didDelete
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.GenerateGUID next) = do
+interpretFlowMethod _ _ (L.GenerateGUID next) = do
   next <$> (UUID.toText <$> UUID.nextRandom)
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.RunSysCmd cmd next) =
+interpretFlowMethod _ _ (L.RunSysCmd cmd next) =
   next <$> readCreateProcess (shell cmd) ""
 
 ----------------------------------------------------------------------
@@ -386,7 +386,7 @@ interpretFlowMethod mbFlowGuid rt (L.Fork desc _newFlowGUID flow next) = do
 
 ----------------------------------------------------------------------
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.Await mbMcs (Awaitable awaitableMVar) next) = do
+interpretFlowMethod _ _ (L.Await mbMcs (Awaitable awaitableMVar) next) = do
   let act = case mbMcs of
         Nothing -> do
           val <- readMVar awaitableMVar
@@ -396,7 +396,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.Await mbMcs (Awaitable awaitableMVar
         Just (Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
   next <$> act
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.ThrowException ex _) = do
+interpretFlowMethod _ _ (L.ThrowException ex _) = do
   throwIO ex
 
 interpretFlowMethod mbFlowGuid rt (L.CatchException comp handler cont) =

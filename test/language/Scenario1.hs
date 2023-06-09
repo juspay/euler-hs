@@ -8,7 +8,7 @@ module Scenario1
 import           Client (User (User), getUser, port, userGUID)
 import           Data.Text (pack)
 import           EulerHS.Language
-import           EulerHS.Prelude hiding (getOption, pack)
+import           EulerHS.Prelude hiding (pack)
 import           EulerHS.TestData.Types
 import           Servant.Client (BaseUrl (..), Scheme (..))
 

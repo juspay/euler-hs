@@ -94,7 +94,7 @@ import           EulerHS.Logger.Language (Logger, logMessage')
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
                                        Message (Message))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
-import           EulerHS.Prelude hiding (getOption, throwM)
+import           EulerHS.Prelude hiding (throwM)
 import qualified EulerHS.PubSub.Language as PSL
 import           EulerHS.SqlDB.Language (SqlDB)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
@@ -1644,7 +1644,7 @@ instance OptionEntity DBMetricCfg DBAndRedisMetricHandler
 ---------------------------------------------------------
 
 isDBMetricEnabled :: Bool
-isDBMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "DB_METRIC_ENABLED"
+isDBMetricEnabled = fromMaybe False $ readMaybe =<< (Conf.lookupEnvT "DB_METRIC_ENABLED" :: Maybe Text)
 
 ---------------------------------------------------------
 

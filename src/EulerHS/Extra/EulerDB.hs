@@ -18,7 +18,7 @@ module EulerHS.Extra.EulerDB (
 
 import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,
                                    throwException, withDB, withDBTransaction)
-import           EulerHS.Prelude hiding (getOption)
+import           EulerHS.Prelude
 import           EulerHS.Types (DBConfig, OptionEntity)
 
 import           Database.Beam.MySQL (MySQLM)

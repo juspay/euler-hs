@@ -4,7 +4,7 @@ module HttpAPISpec (spec) where
 
 --import           EulerHS.Interpreters (runFlow)
 --import           EulerHS.Language
-import           EulerHS.Prelude hiding (get, getOption)
+import           EulerHS.Prelude hiding (get)
 --import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime)
 import           Test.Hspec (Spec, describe, it, shouldBe)
 import qualified EulerHS.Types as T

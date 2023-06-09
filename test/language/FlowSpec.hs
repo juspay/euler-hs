@@ -21,7 +21,7 @@ import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
 
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
-import           EulerHS.Prelude hiding (get, getOption)
+import           EulerHS.Prelude hiding (get)
 import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
