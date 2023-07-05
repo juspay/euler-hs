@@ -65,8 +65,12 @@ interpretKeyValueF runRedis (L.Incr k next) =
     runRedis $ R.incr k
 
 interpretKeyValueF runRedis (L.HSet k field value next) =
-  fmap next $
-    runRedis $ R.hset k field value
+  fmap next $ do
+    result <- runRedis $ R.hset k field value
+    pure $ case result of
+      Right 0 -> Right False
+      Right _ -> Right True
+      Left reply -> Left reply
 
 interpretKeyValueF runRedis (L.HGet k field next) =
   fmap next $
@@ -100,6 +104,36 @@ interpretKeyValueF runRedis (L.XRead stream entryId next) =
     parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
     parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
 
+interpretKeyValueF runRedis (L.XReadGroup groupName consumerName streamsAndIds opt next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xreadGroupOpts groupName consumerName streamsAndIds opt
+      pure $ (fmap . fmap $ parseXReadResponse) <$> result
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+
+    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueF runRedis (L.XReadOpts strObjs readOpts next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xreadOpts ((\(a, b) -> (a, makeStreamEntryId b)) <$> strObjs) readOpts
+      pure result
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
+    makeStreamEntryId L.AutoID = "*" 
+
+
+interpretKeyValueF runRedis (L.XGroupCreate stream groupName startId next) =
+  fmap next $ runRedis $ R.xgroupCreate stream groupName startId
+
+interpretKeyValueF runRedis (L.XDel stream entryIds next) =
+  fmap next $
+    runRedis $ R.xdel stream ((\(L.KVDBStreamEntryID ms sq) -> show ms <> "-" <> show sq)  <$> entryIds)
+
 interpretKeyValueF runRedis (L.XRevRange stream send sstart count next) =
   fmap next $
     runRedis $ do
@@ -117,6 +151,42 @@ interpretKeyValueF runRedis (L.XLen stream next) =
 
 interpretKeyValueF runRedis (L.SAdd k v next) =
   fmap next $ runRedis $ R.sadd k v
+
+interpretKeyValueF runRedis (L.ZAdd k v next) = 
+  fmap next $ runRedis $ R.zadd k v
+
+interpretKeyValueF runRedis (L.ZRange k start stop next) =
+  fmap next $ runRedis $ R.zrange k start stop
+
+interpretKeyValueF runRedis (L.ZRangeByScore k minScore maxScore next) =
+  fmap next $ runRedis $  R.zrangebyscore k minScore maxScore
+
+interpretKeyValueF runRedis (L.ZRangeByScoreWithLimit k minScore maxScore offset count next) =
+  fmap next $ runRedis $  R.zrangebyscoreLimit k minScore maxScore offset count
+
+interpretKeyValueF runRedis (L.ZRem k v next) =
+  fmap next $ runRedis $ R.zrem k v
+
+interpretKeyValueF runRedis (L.ZRemRangeByScore k minScore maxScore next) =
+  fmap next $ runRedis $ R.zremrangebyscore k minScore maxScore
+
+interpretKeyValueF runRedis (L.ZCard k next) =
+  fmap next $ runRedis $ R.zcard k
+
+interpretKeyValueF runRedis (L.SRem k v next) =
+  fmap next $ runRedis $ R.srem k v
+
+interpretKeyValueF runRedis (L.LPush k v next) =
+  fmap next $ runRedis $ R.lpush k v
+
+interpretKeyValueF runRedis (L.LRange k start stop next) =
+  fmap next $ runRedis $ R.lrange k start stop
+
+interpretKeyValueF runRedis (L.SMembers k next) =
+  fmap next $ runRedis $ R.smembers k
+
+interpretKeyValueF runRedis (L.SMove k1 k2 v next) =
+  fmap next $ runRedis $ R.smove k1 k2 v
 
 interpretKeyValueF runRedis (L.SMem k v next) =
   fmap next $ runRedis $ R.sismember k v
@@ -154,13 +224,19 @@ interpretKeyValueTxF (L.Incr k next) =
   next <$> R.incr k
 
 interpretKeyValueTxF (L.HSet k field value next) =
-  next <$> R.hset k field value
+  next . fmap (/= 0) <$> R.hset k field value
 
 interpretKeyValueTxF (L.HGet k field next) =
   next <$> R.hget k field
 
 interpretKeyValueTxF (L.XLen stream next) =
   next <$> R.xlen stream
+
+interpretKeyValueTxF (L.XGroupCreate stream groupName startId next) =
+  next <$> R.xgroupCreate stream groupName startId
+
+interpretKeyValueTxF (L.XDel stream entryIds next) =
+  next <$> R.xdel stream ((\(L.KVDBStreamEntryID ms sq) -> show ms <> "-" <> show sq)  <$> entryIds)
 
 interpretKeyValueTxF (L.XAdd stream entryId items next) =
   next . fmap parseStreamEntryId <$> R.xadd stream (makeStreamEntryId entryId) items
@@ -184,6 +260,22 @@ interpretKeyValueTxF (L.XRead stream entryId next) =
     parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
     parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
 
+interpretKeyValueTxF (L.XReadGroup groupName consumerName streamsAndIds opt next) =
+  next . fmap (fmap . fmap $ parseXReadResponse) <$> R.xreadGroupOpts groupName consumerName streamsAndIds opt
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+               
+    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueTxF (L.XReadOpts strObjs readOpts next) =
+  fmap next $ R.xreadOpts ((\(a, b) -> (a, makeStreamEntryId b)) <$> strObjs) readOpts
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
+    makeStreamEntryId L.AutoID = "*"
+
 interpretKeyValueTxF (L.XRevRange stream send sstart count next) =
   next . fmap (fmap parseXReadResponseRecord) <$> R.xrevRange stream send sstart count
   where
@@ -193,6 +285,42 @@ interpretKeyValueTxF (L.XRevRange stream send sstart count next) =
 
 interpretKeyValueTxF (L.SAdd k v next) =
   next <$> R.sadd k v
+
+interpretKeyValueTxF (L.ZAdd k v next) =
+  next <$> R.zadd k v
+
+interpretKeyValueTxF (L.ZRange k startRank stopRank next) =
+  next <$> R.zrange k startRank stopRank
+
+interpretKeyValueTxF (L.ZRangeByScore k minScore maxScore next) =
+  next <$> R.zrangebyscore k minScore maxScore
+
+interpretKeyValueTxF (L.ZRangeByScoreWithLimit k minScore maxScore offset count next) =
+  next <$> R.zrangebyscoreLimit k minScore maxScore offset count
+
+interpretKeyValueTxF (L.ZRem k v next) =
+  next <$> R.zrem k v
+
+interpretKeyValueTxF (L.ZRemRangeByScore k minScore maxScore next) =
+  next <$> R.zremrangebyscore k minScore maxScore
+
+interpretKeyValueTxF (L.ZCard k next) =
+  next <$> R.zcard k
+
+interpretKeyValueTxF (L.SRem k v next) =
+  next <$> R.srem k v
+
+interpretKeyValueTxF (L.LRange k start stop next) =
+  next <$> R.lrange k start stop
+
+interpretKeyValueTxF (L.LPush k v next) =
+  next <$> R.lpush k v
+
+interpretKeyValueTxF (L.SMembers k next) =
+  next <$> R.smembers k
+
+interpretKeyValueTxF (L.SMove k1 k2 v next) =
+  next <$> R.smove k1 k2 v
 
 interpretKeyValueTxF (L.SMem k v next) =
   next <$> R.sismember k v
@@ -209,9 +337,9 @@ interpretTransactionF runRedis (L.MultiExec dsl next) =
   fmap next $
     runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
 
-interpretTransactionF runRedis (L.MultiExecWithHash h dsl next) =
+interpretTransactionF runRedis (L.MultiExecWithHash _ dsl next) =
   fmap next $
-    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExecWithHash h $ foldF interpretKeyValueTxF dsl
+    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
 
 
 interpretDbF

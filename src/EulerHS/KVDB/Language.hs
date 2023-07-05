@@ -10,26 +10,36 @@ module EulerHS.KVDB.Language
   , KVDBField, KVDBChannel, KVDBMessage
   , KVDBStream, KVDBStreamItem, KVDBStreamEntryID (..), KVDBStreamEntryIDInput (..)
   , KVDBF(..), KeyValueF(..), TransactionF(..), RecordID, KVDBStreamReadResponse (..), KVDBStreamReadResponseRecord (..), KVDBStreamEnd, KVDBStreamStart
+  , KVDBGroupName, KVDBConsumerName
   -- ** Methods
   -- *** Regular
   -- **** For simple values
   , set, get, incr, setex, setOpts
+  -- **** For list values
+  , lpush, lrange
   -- **** For hash values
   , hset, hget
   -- **** For streams
-  , xadd, xlen, xread, xrevrange
+  , xadd, xlen, xread, xrevrange, xreadGroup, xdel, xgroupCreate
   -- **** For both
   , exists, del, expire
   -- *** Transactional
   -- | Used inside multiExec instead of regular
   , multiExec, multiExecWithHash
   , setTx, getTx, delTx, setexTx
+  , lpushTx, lrangeTx
   , hsetTx, hgetTx
-  , xaddTx, xlenTx , xreadTx
+  , xaddTx, xlenTx , xreadTx , xreadOpts
   , expireTx
+  , saddTx
   -- *** Set
-  , sadd
+  , sadd, srem
+  , smembers, smove
   , sismember
+
+  --- *** Ordered Set
+  , zadd
+  , zrange, zrangebyscore, zrangebyscorewithlimit, zrem, zremrangebyscore, zcard
   -- *** Raw
   , rawRequest
   , pingRequest
@@ -63,6 +73,8 @@ type KVDBStream = ByteString
 type KVDBStreamEnd = ByteString
 type KVDBStreamStart = ByteString
 type RecordID = ByteString
+type KVDBGroupName = ByteString
+type KVDBConsumerName = ByteString
 
 data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
   deriving stock Generic
@@ -103,9 +115,25 @@ data KeyValueF f next where
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
+  XReadGroup :: KVDBGroupName -> KVDBConsumerName -> [(KVDBStream, RecordID)] -> R.XReadOpts -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
+  XReadOpts :: [(KVDBStream, KVDBStreamEntryIDInput)] -> R.XReadOpts -> (f (Maybe [R.XReadResponse]) -> next) -> KeyValueF f next
+  XGroupCreate :: KVDBStream -> KVDBGroupName -> RecordID -> (f R.Status -> next) -> KeyValueF f next
+  XDel    :: KVDBStream -> [KVDBStreamEntryID] -> (f Integer -> next) -> KeyValueF f next
   XRevRange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> (f [KVDBStreamReadResponseRecord] -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  ZAdd  :: KVDBKey -> [(Double, KVDBValue)] -> (f Integer -> next) -> KeyValueF f next
+  ZRange :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRangeByScore :: KVDBKey -> Double -> Double -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRangeByScoreWithLimit :: KVDBKey -> Double -> Double -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRem :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  ZRemRangeByScore :: KVDBKey -> Double -> Double -> (f Integer -> next) -> KeyValueF f next
+  ZCard :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
+  SRem    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  LPush   :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  LRange   :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
+  SMembers :: KVDBKey -> (f [ByteString] -> next) -> KeyValueF f next
+  SMove   :: KVDBKey -> KVDBKey -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
   SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
   Ping    :: (f R.Status -> next) -> KeyValueF f next
@@ -123,11 +151,27 @@ instance Functor (KeyValueF f) where
   fmap f (HGet k field next)             = HGet k field (f . next)
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XRead s entryId next)          = XRead s entryId (f . next)
+  fmap f (XReadGroup gName cName s opts next) = XReadGroup gName cName s opts (f . next)
+  fmap f (XGroupCreate s gName startId next)  = XGroupCreate s gName startId (f . next)
+  fmap f (XDel s entryId next)               = XDel s entryId (f . next)
   fmap f (XRevRange strm send sstart count next) = XRevRange strm send sstart count (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
   fmap f (SAdd k v next)                 = SAdd k v (f . next)
+  fmap f (ZAdd k v next)                 = ZAdd k v (f . next)
+  fmap f (ZRange k s1 s2 next)           = ZRange k s1 s2 (f . next)
+  fmap f (ZRangeByScore k s1 s2 next)    = ZRangeByScore k s1 s2 (f . next)
+  fmap f (ZRangeByScoreWithLimit k s1 s2 offset count next) = ZRangeByScoreWithLimit k s1 s2 offset count (f . next)
+  fmap f (ZRem k v next)                 = ZRem k v (f . next)
+  fmap f (ZRemRangeByScore k s1 s2 next) = ZRemRangeByScore k s1 s2 (f . next)
+  fmap f (ZCard k next)                  = ZCard k (f . next)
+  fmap f (SRem k v next)                 = SRem k v (f . next)
+  fmap f (LPush k v next)                = LPush k v (f . next)
+  fmap f (LRange k start stop next)      = LRange k start stop (f . next)
+  fmap f (SMove k1 k2 v next)            = SMove k1 k2 v (f . next)
+  fmap f (SMembers k next)               = SMembers k (f . next)
   fmap f (SMem k v next)                 = SMem k v (f . next)
   fmap f (Raw args next)                 = Raw args (f . next)
+  fmap f (XReadOpts s readOpts next)     = XReadOpts s readOpts (f . next)
   fmap f (Ping next)                     = Ping (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
@@ -196,6 +240,15 @@ xreadTx stream entryId = liftFC $ XRead stream entryId id
 xlenTx :: KVDBStream -> KVDBTx (R.Queued Integer)
 xlenTx stream = liftFC $ XLen stream id
 
+lpushTx :: KVDBKey -> [KVDBValue] -> KVDBTx (R.Queued Integer)
+lpushTx key value = liftFC $ LPush key value id
+
+lrangeTx :: KVDBKey -> Integer -> Integer -> KVDBTx (R.Queued [ByteString])
+lrangeTx key start stop = liftFC $ LRange key start stop id
+
+saddTx :: KVDBKey -> [KVDBValue] -> KVDBTx (R.Queued Integer)
+saddTx setKey setmem = liftFC $ SAdd setKey setmem id
+
 ---
 -- | Set the value of a key
 set :: KVDBKey -> KVDBValue -> KVDB KVDBStatus
@@ -242,6 +295,18 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 xread :: KVDBStream -> RecordID -> KVDB (Maybe [KVDBStreamReadResponse])
 xread stream entryId = ExceptT $ liftFC $ KV $ XRead stream entryId id
 
+xreadGroup :: KVDBGroupName -> KVDBConsumerName -> [(KVDBStream, RecordID)] -> Maybe Integer -> Maybe Integer -> Bool -> KVDB (Maybe [KVDBStreamReadResponse])
+xreadGroup groupName consumerName streamsAndIds mBlock mCount noack = ExceptT $ liftFC $ KV $ XReadGroup groupName consumerName streamsAndIds (R.XReadOpts mBlock mCount noack) id
+
+xreadOpts :: [(KVDBStream, KVDBStreamEntryIDInput)] -> R.XReadOpts -> KVDB (Maybe [R.XReadResponse])
+xreadOpts stPair readOpts = ExceptT $ liftFC $ KV $ XReadOpts stPair readOpts id
+
+xgroupCreate :: KVDBStream -> KVDBGroupName -> RecordID -> KVDB R.Status
+xgroupCreate stream groupName startId = ExceptT $ liftFC $ KV $ XGroupCreate stream groupName startId id
+
+xdel :: KVDBStream -> [KVDBStreamEntryID] -> KVDB Integer
+xdel stream entryId = ExceptT $ liftFC $ KV $ XDel stream entryId id
+
 xrevrange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> KVDB ([KVDBStreamReadResponseRecord])
 xrevrange stream send sstart count = ExceptT $ liftFC $ KV $ XRevRange stream send sstart count id
 
@@ -251,6 +316,42 @@ xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 -- | Add one or more members to a set
 sadd :: KVDBKey -> [KVDBValue] -> KVDB Integer
 sadd setKey setmem = ExceptT $ liftFC $ KV $ SAdd setKey setmem id
+
+srem :: KVDBKey -> [KVDBValue] -> KVDB Integer
+srem setKey setmem = ExceptT $ liftFC $ KV $ SRem setKey setmem id
+
+zadd :: KVDBKey -> [(Double, KVDBValue)] -> KVDB Integer
+zadd key values = ExceptT $ liftFC $ KV $ ZAdd key values id
+
+zrange :: KVDBKey -> Integer -> Integer -> KVDB [ByteString]
+zrange key startRank stopRank = ExceptT $ liftFC $ KV $ ZRange key startRank stopRank id
+
+zrangebyscore :: KVDBKey -> Double -> Double -> KVDB [ByteString]
+zrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRangeByScore key minScore maxScore id
+
+zrem :: KVDBKey -> [KVDBValue] -> KVDB Integer
+zrem key values = ExceptT $ liftFC $ KV $ ZRem key values id
+
+zremrangebyscore :: KVDBKey -> Double -> Double -> KVDB Integer
+zremrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRemRangeByScore key minScore maxScore id
+
+zrangebyscorewithlimit :: KVDBKey -> Double -> Double -> Integer -> Integer -> KVDB [ByteString]
+zrangebyscorewithlimit key minScore maxScore offset count = ExceptT $ liftFC $ KV $ ZRangeByScoreWithLimit key minScore maxScore offset count id
+
+zcard :: KVDBKey -> KVDB Integer
+zcard key = ExceptT $ liftFC $ KV $ ZCard key id
+
+lpush :: KVDBKey -> [KVDBValue] -> KVDB Integer
+lpush key value = ExceptT $ liftFC $ KV $ LPush key value id
+
+lrange :: KVDBKey -> Integer -> Integer -> KVDB [ByteString]
+lrange key start stop = ExceptT $ liftFC $ KV $ LRange key start stop id
+
+smembers :: KVDBKey -> KVDB [ByteString]
+smembers key = ExceptT $ liftFC $ KV $ SMembers key id
+
+smove :: KVDBKey -> KVDBKey -> KVDBValue -> KVDB Bool
+smove source destination member = ExceptT $ liftFC $ KV $ SMove source destination member id
 
 sismember :: KVDBKey -> KVDBKey -> KVDB Bool
 sismember key member = ExceptT $ liftFC $ KV $ SMem key member id

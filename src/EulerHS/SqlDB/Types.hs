@@ -3,6 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE DeriveDataTypeable     #-}
 
 module EulerHS.SqlDB.Types
   (
@@ -46,6 +47,7 @@ module EulerHS.SqlDB.Types
   , SQLError(..)
   ) where
 
+import           Data.Data (Data)
 import qualified Data.Pool as DP
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Database.Beam as B
@@ -72,6 +74,7 @@ class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   rtUpdate              :: B.SqlUpdate be table -> beM ()
   rtUpdateReturningList :: forall table. (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlUpdate be table -> beM [table Identity]
   rtDelete              :: B.SqlDelete be table -> beM ()
+  rtDeleteReturningList :: forall table. (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlDelete be table -> beM [table Identity]
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRuntime BS.Sqlite BS.SqliteM where
@@ -82,6 +85,7 @@ instance BeamRuntime BS.Sqlite BS.SqliteM where
   rtUpdate = B.runUpdate
   rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
+  rtDeleteReturningList = error "Not implemented"
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRuntime BP.Postgres BP.Pg where
@@ -92,6 +96,7 @@ instance BeamRuntime BP.Postgres BP.Pg where
   rtUpdate = B.runUpdate
   rtUpdateReturningList = updateReturningListPG
   rtDelete = B.runDelete
+  rtDeleteReturningList = deleteReturningListPG
 
 deleteReturningListPG
   :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
@@ -113,6 +118,7 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtUpdate = B.runUpdate
   rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
+  rtDeleteReturningList = error "Not implemented"
 
 class BeamRunner beM where
   getBeamDebugRunner :: NativeSqlConn -> beM a -> ((Text -> IO ()) -> IO a)
@@ -281,7 +287,7 @@ data SqliteError
   | SqliteErrorWarning
   | SqliteErrorRow
   | SqliteErrorDone
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 toSqliteError :: SQLite.Error -> SqliteError
@@ -316,6 +322,7 @@ toSqliteError SQLite.ErrorNotice             = SqliteErrorNotice
 toSqliteError SQLite.ErrorWarning            = SqliteErrorWarning
 toSqliteError SQLite.ErrorRow                = SqliteErrorRow
 toSqliteError SQLite.ErrorDone               = SqliteErrorDone
+toSqliteError _                              = SqliteErrorError
 
 data SqliteSqlError
   = SqliteSqlError
@@ -323,7 +330,7 @@ data SqliteSqlError
     , sqlErrorDetails :: Text
     , sqlErrorContext :: Text
     }
-    deriving stock (Show, Eq, Ord, Generic)
+    deriving stock (Show, Eq, Ord, Generic, Data)
     deriving anyclass (ToJSON, FromJSON)
 
 toSqliteSqlError :: SQLite.SQLError -> SqliteSqlError
@@ -340,7 +347,7 @@ data SQLError
   = PostgresError PostgresSqlError
   | MysqlError    MysqlSqlError
   | SqliteError   SqliteSqlError
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 data MysqlSqlError =
@@ -348,7 +355,7 @@ data MysqlSqlError =
   { errCode :: {-# UNPACK #-} !Word16,
     errMsg  :: {-# UNPACK #-} !Text
   }
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 toMysqlSqlError :: MySQL.ERR -> MysqlSqlError
@@ -370,7 +377,7 @@ data PostgresExecStatus
   | PostgresNonfatalError
   | PostgresFatalError
   | PostgresSingleTuple
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 toPostgresExecStatus :: PGS.ExecStatus -> PostgresExecStatus
@@ -393,7 +400,7 @@ data PostgresSqlError =
     , sqlErrorDetail :: Text
     , sqlErrorHint   :: Text
     }
-    deriving stock (Show, Eq, Ord, Generic)
+    deriving stock (Show, Eq, Ord, Generic, Data)
     deriving anyclass (ToJSON, FromJSON)
 
 toPostgresSqlError :: PGS.SqlError -> PostgresSqlError
@@ -418,14 +425,14 @@ data DBErrorType
   | SQLError SQLError
   | UnexpectedResult
   | UnrecognizedError
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 -- | Represents DB error
 data DBError
   = DBError DBErrorType Text
-  deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic, Data)
+  deriving anyclass (ToJSON, FromJSON, Exception)
 
 -- | Represents resulting type for DB actions
 type DBResult a = Either DBError a

@@ -45,7 +45,7 @@ checkAndStartLooper meshCfg decodeTable = do
         _hasLooperStarted
             | _hasLooperStarted == Just True ->  pure ()
             | otherwise ->  do
-                streamName <- getRandomStream
+                streamName <- getRandomStream 
                 when shouldLogFindDBCallLogs $ L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> "> for table " <> tableName @(table Identity)
                 L.setOption (LooperStarted (tableName @(table Identity))) True
                 L.fork $ looperForRedisStream  decodeTable meshCfg.kvRedis streamName
@@ -54,13 +54,13 @@ looperForRedisStream :: forall table m.(
     HasCallStack,
     KVConnector (table Identity),
     L.MonadFlow m
-    ) =>
+    ) => 
     (ByteString -> Maybe (ImcStreamValue (table Identity))) -> Text -> Text -> m ()
-looperForRedisStream decodeTable redisName streamName = bracket
+looperForRedisStream decodeTable redisName streamName = bracket 
     (pure ())
     (\ _ -> do
       L.logInfoT "looperForRedisStream failed" ("Setting LooperStarted option as False for table " <> tableName @(table Identity))
-      L.setOption (LooperStarted (tableName @(table Identity))) False)
+      L.setOption (LooperStarted (tableName @(table Identity))) False) 
     (\ _ -> forever $ do
       let tName = tableName @(table Identity)
       maybeRId <- L.getOption (RecordId tName)
@@ -68,7 +68,7 @@ looperForRedisStream decodeTable redisName streamName = bracket
           Nothing -> do
               rId <- T.pack . show <$> L.getCurrentDateInMillis
               initRecords <- getRecordsFromStream redisName streamName rId tName
-              case initRecords of
+              case initRecords of 
                   Nothing -> do
                       L.setOption (RecordId tName) rId
                       return ()
@@ -92,7 +92,7 @@ setInMemCache :: forall table m.(
     HasCallStack,
     KVConnector(table Identity),
     L.MonadFlow m
-    ) =>
+    ) => 
     Text ->
     (ByteString -> Maybe (ImcStreamValue (table Identity))) ->
     RecordKeyValues -> m ()
@@ -102,14 +102,14 @@ setInMemCache tName decodeTable (key,value) = do
         Nothing -> do
           L.logErrorT "setInMemCache" $ "Unable to decode ImcStreamValue for the table <" <> key
           return ()
-        Just strmVal ->
+        Just strmVal -> 
           case strmVal.command of
             ImcInsert -> strmVal & \x -> do
               let
                 pKeyText = getLookupKeyByPKey x.tableRow
                 pKey = pKeyText  <> getShardedHashTag pKeyText
               updateAllKeysInIMC pKey x.tableRow
-
+            
             ImcDelete -> strmVal.tableRow & \x -> do
               let
                 pKeyText = getLookupKeyByPKey x
@@ -117,7 +117,7 @@ setInMemCache tName decodeTable (key,value) = do
               deletePrimaryAndSecondaryKeysFromIMC pKey x
 
 extractRecordsFromStreamResponse :: [L.KVDBStreamReadResponseRecord] -> [RecordKeyValues]
-extractRecordsFromStreamResponse  = foldMap (fmap (bimap decodeUtf8 id) . L.records)
+extractRecordsFromStreamResponse  = foldMap (fmap (bimap decodeUtf8 id) . L.records) 
 
 getRecordsFromStream :: Text -> Text -> LatestRecordId -> Text -> (L.MonadFlow m) => m (Maybe (LatestRecordId, [RecordKeyValues]))
 getRecordsFromStream redisName streamName lastRecordId tName = do
@@ -175,12 +175,12 @@ searchInMemoryCache :: forall be beM table m.
     Model be table,
     MeshMeta be table,
     L.MonadFlow m
-  ) =>  MeshConfig ->
+  ) =>  MeshConfig -> 
         DBConfig beM ->
         Where be table ->
         m (Source, MeshResult [table Identity])
 searchInMemoryCache meshCfg dbConf whereClause = do
-  eitherPKeys <- getPrimaryKeys False
+  eitherPKeys <- getPrimaryKeys False 
   let
     decodeTable :: ByteString -> Maybe (ImcStreamValue (table Identity))
     decodeTable = A.decode . BSL.fromStrict
@@ -196,13 +196,13 @@ searchInMemoryCache meshCfg dbConf whereClause = do
                 keysRequiringRedisFetch = catMaybes $ results <&> getKeysRequiringRedisFetch
               when shouldLogFindDBCallLogs $ L.logDebugV ("searchInMemoryCache: <" <> tname <> "> got validResult") validResult
               if length validResult == 0
-                then if (length keysRequiringRedisFetch) /= 0
-                  then do
-                    kvFetch keysRequiringRedisFetch
+                then if (length keysRequiringRedisFetch) /= 0 
+                  then do 
+                    kvFetch keysRequiringRedisFetch 
                   else do
                     getPrimaryKeys True >>= \case
                       Left err -> return . (KV,) . Left $ err
-                      Right pKeysFromRedis -> kvFetch $ decodeUtf8 <$> concat pKeysFromRedis
+                      Right pKeysFromRedis -> kvFetch $ decodeUtf8 <$> concat pKeysFromRedis 
 
                 else if length keysRequiringRedisFetch == 0
                   then return . (IN_MEM,) . Right $ validResult
@@ -212,7 +212,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
                       lockKey = T.pack . DL.intercalate "_" $ T.unpack <$> keysRequiringRedisFetch
                     whenM (L.acquireConfigLock lockKey) (forkKvFetchAndSave keysRequiringRedisFetch lockKey)
                     return . (IN_MEM,) . Right $ validResult
-
+    
     Left e -> return . (IN_MEM,) . Left $ e
   where
 
@@ -233,7 +233,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
     forkKvFetchAndSave :: [Text] -> Text -> m ()
     forkKvFetchAndSave pKeys lockKey = do
       when shouldLogFindDBCallLogs $ L.logDebugT "forkKvFetchAndSave" $ "Starting Timeout for redis-fetch for in-mem-config"
-      L.fork $
+      L.fork $ 
         do
           void $ L.runIO $ threadDelayMilisec 5
           void $ L.releaseConfigLock lockKey      -- TODO  Check if release fails
@@ -241,8 +241,8 @@ searchInMemoryCache meshCfg dbConf whereClause = do
       L.fork $ void $ kvFetch pKeys
 
     kvFetch :: [Text] -> m (Source, MeshResult [table Identity])
-    kvFetch pKeys =
-      if meshCfg.kvHardKilled
+    kvFetch pKeys = 
+      if meshCfg.kvHardKilled       
         then (SQL,) <$> doDbFetchAndUpdateIMC
         else useKvcAndUpdateIMC pKeys
 
@@ -254,7 +254,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
           L.logErrorT "kvFetch: " (show err)
           return . (KV,) . Left $ err
         Right mtups -> do
-          let
+          let 
             tups = catMaybes mtups
           if length tups == 0
             then (SQL,) <$> doDbFetchAndUpdateIMC
@@ -282,13 +282,13 @@ searchInMemoryCache meshCfg dbConf whereClause = do
         Right rows -> pure . Right $ (\row -> (getPKeyFromPKeyText row, row)) <$> rows
 
     getPKeyFromPKeyText :: table Identity -> Text
-    getPKeyFromPKeyText row =
+    getPKeyFromPKeyText row = 
       let
         pKeyText = getLookupKeyByPKey row
       in pKeyText  <> getShardedHashTag pKeyText
     getPrimaryKeys :: Bool -> m (MeshResult [[ByteString]])
     getPrimaryKeys fetchFromRedis = do
-      let
+      let 
         keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
         andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
         modelName = tableName @(table Identity)
@@ -313,7 +313,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
                 Nothing -> pure $ Right Nothing
                 Just pKeyEntries -> pure . Right . Just $ encodeUtf8 <$> unsafeCoerce @_ @[Text] pKeyEntries.entry
             _ -> pure $ Right Nothing
-
+          
         intersectList (x : y : xs) = intersectList (DL.intersect x y : xs)
         intersectList (x : [])     = x
         intersectList []           = []
@@ -328,7 +328,7 @@ updateAllKeysInIMC pKey val = do
 
 updateSecondaryKeyInIMC :: L.MonadFlow m => Text -> LocalTime -> Text -> m ()
 updateSecondaryKeyInIMC pKey newttl sKey = do
-  pkeyList <- L.getConfig sKey >>= \case
+  pkeyList <- L.getConfig sKey >>= \case 
     Nothing -> return []
     Just ls -> return $ unsafeCoerce ls.entry
   L.setConfig sKey $ mkConfigEntry newttl (Set.toList . Set.fromList $ pKey:pkeyList)
@@ -348,14 +348,14 @@ deletePrimaryAndSecondaryKeysFromIMC pKey val = do
       currentTime <- L.getCurrentTimeUTC
       return $ addLocalTime (-1 * (secondsToNominalDiffTime $ toPico 1)) currentTime
     modifySecondaryKeysFromIMC :: L.MonadFlow m => ConfigEntry -> ConfigEntry
-    modifySecondaryKeysFromIMC configEntry =
+    modifySecondaryKeysFromIMC configEntry = 
       let
         pKeys :: [Text]
         pKeys = unsafeCoerce configEntry.entry
       in mkConfigEntry configEntry.ttl $ DL.delete pKey pKeys
 
 pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> Text -> m ()
-pushToConfigStream redisName k v streamName =
+pushToConfigStream redisName k v streamName = 
   void $ L.runKVDB redisName $ L.xadd (encodeUtf8 streamName) L.AutoID [applyFPair encodeUtf8 (k,v)]
 
 pushToInMemConfigStream :: forall table m.
@@ -365,7 +365,7 @@ pushToInMemConfigStream :: forall table m.
     L.MonadFlow m
   ) => MeshConfig -> ImcStreamCommand -> table Identity -> m ()
 pushToInMemConfigStream meshCfg imcCommand alteredModel = do
-  let
+  let 
     -- pKeyText = getLookupKeyByPKey alteredModel
     -- shard = getShardedHashTag pKeyText
     -- pKey =  pKeyText <> shard

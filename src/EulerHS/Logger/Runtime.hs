@@ -20,7 +20,8 @@ module EulerHS.Logger.Runtime
   , module X
   ) where
 
-import           EulerHS.Prelude
+import           Data.IORef (newIORef)
+import           EulerHS.Prelude hiding (newIORef)
 -- Currently, TinyLogger is highly coupled with the Runtime.
 -- Fix it if an interchangable implementations are needed.
 import qualified EulerHS.Logger.TinyLogger as Impl
@@ -32,7 +33,7 @@ import qualified System.Logger as Log
 data LoggerRuntime
   = LoggerRuntime
     { _flowFormatter          :: T.FlowFormatter
-    , _logContext             :: T.LogContext
+    , _logContext             :: IORef T.LogContext
     , _logLevel               :: T.LogLevel
     , _logRawSql              :: T.ShouldLogSQL
     , _logAPI                 :: Bool
@@ -43,7 +44,7 @@ data LoggerRuntime
     }
   | MemoryLoggerRuntime
       !T.FlowFormatter
-       T.LogContext
+      !(IORef T.LogContext)
       !T.LogLevel
       !(MVar [Text])
       !T.LogCounter
@@ -58,8 +59,9 @@ data SeverityCounterHandle = SeverityCounterHandle
   }
 
 createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
-createMemoryLoggerRuntime flowFormatter logLevel =
-  MemoryLoggerRuntime flowFormatter mempty logLevel <$> newMVar [] <*> initLogCounter
+createMemoryLoggerRuntime flowFormatter logLevel = do
+  emptyLoggerCtx <- newIORef mempty
+  MemoryLoggerRuntime flowFormatter emptyLoggerCtx logLevel <$> newMVar [] <*> initLogCounter
 
 createLoggerRuntime
   :: T.FlowFormatter
@@ -70,9 +72,10 @@ createLoggerRuntime flowFormatter severityCounterHandler cfg = do
   -- log entries' sequential number
   logSequence <- initLogCounter
   logHandle <- Impl.createLogger flowFormatter cfg
+  emptyLoggerCtx <- newIORef mempty
   pure $ LoggerRuntime
     flowFormatter
-    mempty
+    emptyLoggerCtx
     (T._logLevel cfg)
     (T._logRawSql cfg)
     (T._logAPI cfg)
@@ -93,9 +96,10 @@ createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severityCo
   -- log entries' sequential number
   logSequence <- initLogCounter
   loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
+  emptyLoggerCtx <- newIORef mempty
   pure $ LoggerRuntime
     flowFormatter
-    mempty
+    emptyLoggerCtx
     (T._logLevel cfg)
     (T._logRawSql cfg)
     (T._logAPI cfg)
@@ -109,9 +113,10 @@ createVoidLoggerRuntime = do
   -- log entries' sequential number
   logSequence <- initLogCounter
   logHandle <- Impl.createVoidLogger
+  emptyLoggerCtx <- newIORef mempty
   pure $ LoggerRuntime
     (const $ pure T.showingMessageFormatter)
-    mempty
+    emptyLoggerCtx
     T.Debug
     T.SafelyOmitSqlLogs
     True

@@ -77,7 +77,7 @@ getDataFromRedisForPKey ::forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, Bool, table Identity)))
+    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, Bool, table Identity))) 
 getDataFromRedisForPKey meshCfg pKey = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ pKey)
   case res of
@@ -162,7 +162,7 @@ getPKeyAndValueList table = do
     A.Object hm -> foldl' (\ acc x -> (go hm x) : acc) [] keyValueList
     _ -> error "Cannot work on row that isn't an Object"
 
-  where
+  where 
     go hm x = case HM.lookup (fst x) hm of
       Just val -> (fst x, val)
       Nothing  -> error $ "Cannot find " <> (fst x) <> " field in the row"
@@ -189,7 +189,7 @@ getAutoIncId meshCfg tName = do
     Right id_ -> return $ Right id_
     Left e    -> return $ Left $ MRedisError e
 
-unsafeJSONSetAutoIncId :: forall table m. (ToJSON (table Identity), FromJSON (table Identity), KVConnector (table Identity), L.MonadFlow m) =>
+unsafeJSONSetAutoIncId :: forall table m. (ToJSON (table Identity), FromJSON (table Identity), KVConnector (table Identity), L.MonadFlow m) => 
   MeshConfig -> table Identity -> m (MeshResult (table Identity))
 unsafeJSONSetAutoIncId meshCfg obj = do
   let (PKey p) = primaryKey obj
@@ -231,7 +231,7 @@ removeDeleteResults :: KVConnector (table Identity) => [table Identity] -> [tabl
 removeDeleteResults delRows rows = do
   let delPKeys = map getLookupKeyByPKey delRows
       nonDelRows = filter (\r -> getLookupKeyByPKey r `notElem` delPKeys) rows
-  nonDelRows
+  nonDelRows 
 
 getLatencyInMicroSeconds :: Integer -> Integer
 getLatencyInMicroSeconds execTime = execTime `div` 1000000
@@ -338,8 +338,8 @@ decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString
 decodeToField val =
   let decodeRes = Encoding.decodeLiveOrDead val
     in  case decodeRes of
-          (isLive, byteString) ->
-            let decodedMeshResult =
+          (isLive, byteString) -> 
+            let decodedMeshResult = 
                         let (h, v) = BSL.splitAt 4 byteString
                           in case h of
                                 "CBOR" -> case Cereal.decodeLazy v of
@@ -353,7 +353,7 @@ decodeToField val =
                                   case A.eitherDecode v of
                                     Right r' -> decodeField @a r'
                                     Left e   -> Left $ MDecodingError $ T.pack e
-                                _      ->
+                                _      -> 
                                   case A.eitherDecode val of
                                     Right r' -> decodeField @a r'
                                     Left e   -> Left $ MDecodingError $ T.pack e
@@ -395,7 +395,7 @@ getFieldsAndValuesFromClause dt = \case
       A.Array l  -> T.pack $ show l
       A.Object o -> T.pack $ show o
       A.Bool b -> T.pack $ show b
-      A.Null -> T.pack ""
+      A.Null -> T.pack "" 
 
 getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
 getPrimaryKeyFromFieldsAndValues _ _ _ [] = pure $ Right []
@@ -414,7 +414,7 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap fieldsAndValues = 
             Right r -> pure $ Right $ Just r
             Left e -> pure $ Left $ MRedisError e
         _ -> pure $ Right Nothing
-
+      
     intersectList (x : y : xs) = intersectList (intersect x y : xs)
     intersectList (x : [])     = x
     intersectList []           = []
@@ -432,14 +432,14 @@ nonEmptySubsequences []      =  []
 nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
   where f ys r = ys : (x : ys) : r
 
-whereClauseDiffCheck :: forall be table m.
+whereClauseDiffCheck :: forall be table m. 
   ( L.MonadFlow m
   , Model be table
   , MeshMeta be table
   , KVConnector (table Identity)
   ) =>
   Where be table -> m (Maybe [[Text]])
-whereClauseDiffCheck whereClause =
+whereClauseDiffCheck whereClause = 
   if isWhereClauseDiffCheckEnabled then do
     let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
         andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
@@ -480,7 +480,7 @@ isLogsEnabledForModel modelName = do
 logAndIncrementKVMetric :: (L.MonadFlow m, ToJSON a) => Bool -> Text -> Operation -> MeshResult a -> Int -> Text -> Integer -> Source -> Maybe [[Text]] -> m ()
 logAndIncrementKVMetric shouldLogData action operation res latency model cpuLatency source mbDiffCheckRes = do
   apiTag <- L.getOptionLocal ApiTag
-  mid    <- L.getOptionLocal MerchantID
+  mid    <- L.getOptionLocal MerchantID 
   let shouldLogData_  = isLogsEnabledForModel model && shouldLogData
   let dblog = DBLogEntry {
       _log_type     = "DB"
@@ -497,7 +497,7 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
     , _merchant_id  = mid
     , _whereDiffCheckRes = mbDiffCheckRes
     }
-  if action == "FIND" then
+  if action == "FIND" then 
     when shouldLogFindDBCallLogs $ logDb Log.Debug ("DB" :: Text) source action model latency dblog
     else logDb Log.Info ("DB" :: Text) source action model latency dblog
   when (source == KV) $ L.setLoggerContext "PROCESSED_THROUGH_KV" "True"

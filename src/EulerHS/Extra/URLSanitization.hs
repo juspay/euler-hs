@@ -45,18 +45,18 @@ sanitizeMetricURL url allowedKeywords = do
         sanitizeQP a = Text.drop 1 $ foldl (\acc x -> acc <> ("&" :: Text.Text) <> (splitByEq x)) ("" :: Text.Text) $ Text.splitOn ("&" :: Text.Text) a
 
         splitByEq :: Text.Text -> Text.Text
-        splitByEq x =
+        splitByEq x = 
             let k = Text.splitOn ("=" :: Text.Text) x
                 fstEle = lookupNthElement k 0
                 sndEle = lookupNthElement k 1
             in if fstEle /= "" then fstEle <> (if checkIfAllowed fstEle then if sndEle /= "" then ("=" :: Text.Text) <> sndEle else ("" :: Text.Text) else ("=" :: Text.Text) <> ("#masked" :: Text.Text)) else ("" :: Text.Text)
-
+        
         lookupNthElement :: [Text.Text] -> Int -> Text.Text
         lookupNthElement xs k =
                 case drop k xs of
                     x:_ -> x
                     [] -> ("" :: Text.Text)
-
+        
         runParserForURLPathAndQueryParams :: Text.Text -> IO (DAT.Result Text.Text)
         runParserForURLPathAndQueryParams str = return $ DAT.parse parseURLPath str
 
@@ -74,7 +74,7 @@ sanitizeMetricURL url allowedKeywords = do
         getKeywords = HS.fromList []
 
 
--- TODO: Move to attoparsec
+-- TODO: Move to attoparsec 
 -- NOTE: Added this pure function for EPNG which should be moved to IO, once dev in epng starts
 
 sanitizeMetricURL' :: Text.Text -> Maybe (HS.HashSet Text.Text) -> Text.Text
@@ -132,7 +132,7 @@ unit_sanitizeMetricURL = g getURLListInput getResultList
                     ,  ("api/v1/processTransaction?mid=#mid&orderId=#orderId" :: Text.Text)
                     ,  ("api/v1/initiateTransaction?mid=#mid&orderId=#orderId" :: Text.Text)
                     ]
-
+        
         getResultList :: [Text.Text]
         getResultList = [
                         ("/v1/payments/#masked/otp/submit" :: Text.Text)

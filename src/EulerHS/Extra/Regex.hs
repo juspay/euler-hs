@@ -16,7 +16,7 @@ data RegExException = RegExException T.Text
 instance CE.Exception RegExException
 
 regex' :: BT.ByteString -> Either T.Text PCRE.Regex
-regex' re =
+regex' re = 
     case PCRE.compileM formatRe [] of
         Right val -> Right val
         Left err -> CE.throw $ RegExException $ (T.pack $ err) <> " " <> (T.pack $ show re)
@@ -30,13 +30,13 @@ replace :: PCRE.Regex -> SBS -> T.Text -> T.Text
 replace cRegex to str = PCRE.gsub cRegex to str
 
 test :: PCRE.Regex -> T.Text -> Bool
-test r str =
+test r str = 
     case TRPLC.match r (T.unpack str) [] of
         Nothing -> False
         DM.Just _ -> True
 
 match :: PCRE.Regex -> T.Text -> Maybe [Maybe T.Text]
-match r str =
+match r str = 
     case (TRPLC.match r (T.unpack str) []) of
         Nothing -> Nothing
         DM.Just val -> DM.Just $ fmap (DM.Just . T.pack) $ val
