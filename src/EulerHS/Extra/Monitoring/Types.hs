@@ -10,17 +10,17 @@ import           EulerHS.Types (OptionEntity)
 
 
 data DBMetricInfo = DBMetricInfo {
-    _latencyInfo :: LatencyInfo
+    _latencyInfo :: LatencyInfo 
 }
   deriving stock (Show)
 
 data RedisMetricInfo = RedisMetricInfo {
-    _latencyInfo :: LatencyInfo
+    _latencyInfo :: LatencyInfo 
 }
   deriving stock (Show)
 
 data APIMetricInfo = APIMetricInfo {
-    _latencyInfo :: LatencyInfo
+    _latencyInfo :: LatencyInfo 
 }
   deriving stock (Show)
 

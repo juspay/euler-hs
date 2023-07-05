@@ -66,12 +66,12 @@ incrementAPILatencyMetric flowRt latency = when isLatencyMetricEnabled $ do
 
 logLatencyMetricLog :: (HasCallStack, L.MonadFlow m) => m ()
 logLatencyMetricLog = do
-    dbMetric    <- L.getOptionLocal EEMT.DBMetricInfoKey <&> ((\(EEMT.DBMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.DB <&> fromMaybe A.Null
+    dbMetric    <- L.getOptionLocal EEMT.DBMetricInfoKey <&> ((\(EEMT.DBMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.DB <&> fromMaybe A.Null 
     redisMetric <- L.getOptionLocal EEMT.RedisMetricInfoKey <&> ((\(EEMT.RedisMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.REDIS <&> fromMaybe A.Null
     apiMetric    <- L.getOptionLocal EEMT.APIMetricInfoKey <&> ((\(EEMT.APIMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.API <&> fromMaybe A.Null
     L.logInfoV ("LATENCY_METRIC" :: Text) (A.object $ [("dbMetric",dbMetric),("redisMetric",redisMetric),("apiMetric",apiMetric)])
     where
-        extractAndIncrementLatencyMetric latencyHandle = \case
+        extractAndIncrementLatencyMetric latencyHandle = \case 
             (Just (latencyInfo)) -> incrementKVMetric latencyHandle latencyInfo *> pure (Just $ A.toJSON latencyInfo)
             Nothing              -> pure Nothing
 
@@ -80,7 +80,7 @@ incrementKVMetric :: (HasCallStack, L.MonadFlow m) => EEMT.LatencyHandle -> EEMT
 incrementKVMetric latencyHandle latencyInfo  = do
   mHandle <- L.getOption EEMT.LatencyMetricCfg
   maybe (pure ()) (\handle -> do
-      mid    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal MerchantID
+      mid    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal MerchantID 
       tag    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal ApiTag
       L.runIO $ ((EEMT.latencyCounter handle) (latencyHandle, mid, tag, latencyInfo))) mHandle
 

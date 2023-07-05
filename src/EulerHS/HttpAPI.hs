@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE DerivingVia           #-}
 
 module EulerHS.HttpAPI
     (
@@ -12,17 +13,27 @@ module EulerHS.HttpAPI
     , withProxy
     , withMbProxy
     , withClientTls
+    , withClientTlsP12
     , withMbClientTls
     , withCustomCA
       -- * X509 utilities
     , makeCertificateStoreFromMemory
       -- * Common types and convenience methods
+    , ClientCert(..)
     , HTTPRequest(..)
     , HTTPRequestMasked
     , HTTPResponse(..)
+    , HTTPResponseException(..)
+    , HTTPResponseMasked
     , HTTPMethod(..)
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)
+    , P12Cert (..)
+    , AwaitingError (..)
+    , HttpManagerNotFound(..)
+    , MaskReqRespBody
+    , HttpData(..)
+    , RequestType(..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -42,8 +53,11 @@ module EulerHS.HttpAPI
     , maskHTTPRequest
     , maskHTTPResponse
     , mkHttpApiCallLogEntry
+    , shouldBypassProxy
+    , isART
     ) where
 
+import qualified Crypto.Store.PKCS12 as PKCS12
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
@@ -56,6 +70,7 @@ import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import           Data.Default
+import qualified Data.Either.Extra as Extra
 import qualified Data.Map as Map
 import           Data.Monoid (All (..))
 import           Data.PEM (pemContent, pemParseBS)
@@ -77,6 +92,8 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.X509 (getSystemCertificateStore)
+import qualified Juspay.Extra.Config as Conf
+import qualified Data.List as List
 
 newtype CertificateStore'
   = CertificateStore'
@@ -105,7 +122,7 @@ instance Hashable CertificateStore' where
 -- |
 data HTTPClientSettings = HTTPClientSettings
   { httpClientSettingsProxy             :: Last ProxySettings
-  , httpClientSettingsClientCertificate :: Last HTTPCert
+  , httpClientSettingsClientCertificate :: Last ClientCert
   , httpClientSettingsCustomStore       :: CertificateStore'
   , httpClientSettingsCheckLeafV3       :: All
   }
@@ -152,16 +169,27 @@ buildSettings HTTPClientSettings{..} =
       Nothing -> HTTP.noProxy
 
     baseSettings = case getLast httpClientSettingsClientCertificate of
-      Just HTTPCert{..} ->
-        case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
-          Right creds ->
-            let hooks = def { TLS.onCertificateRequest =
-                                \_ -> return $ Just creds
-                            }
-                clientParams = mkClientParams hooks
-            in mkSettings clientParams
-          -- TODO?
-          Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+      Just cert ->
+        case cert of
+          HTTPCertificate HTTPCert{..} ->
+            case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+              Right creds ->
+                let hooks = def { TLS.onCertificateRequest =
+                                    \_ -> return $ Just creds
+                                }
+                    clientParams = mkClientParams hooks
+                in mkSettings clientParams
+              Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+          P12Certificate P12Cert{..} ->
+            case mkP12Cert getPfx getPassPhrase of
+              Right creds ->
+                let hooks = def { TLS.onCertificateRequest =
+                                    \_ -> return $ Just creds
+                             }
+                    clientParams = mkClientParams hooks
+                in mkSettings clientParams
+              Left err -> error $ "cannot load client certificate data: " <> err
+              -- TODO?
       Nothing ->
         let clientParams = mkClientParams def
         in mkSettings clientParams
@@ -188,6 +216,15 @@ buildSettings HTTPClientSettings{..} =
 
     sysStore = memorizedSysStore
 
+    mkP12Cert pfx passPhrase = do
+      pkcs12Cert <- mapLeftShow $ PKCS12.readP12FileFromMemory pfx
+      cert <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Cert
+      let pkcs12Creds = PKCS12.toCredential cert
+      maybeCreds <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Creds
+      maybe (Left "Invalid P12 certificate") Right maybeCreds
+
+    mapLeftShow = Extra.mapLeft show
+
 {-# NOINLINE memorizedSysStore #-}
 memorizedSysStore :: CertificateStore
 memorizedSysStore = unsafePerformIO getSystemCertificateStore
@@ -210,7 +247,12 @@ withMbProxy Nothing  = mempty
 -- | Adds a client certificate to do client's TLS authentication
 withClientTls :: HTTPCert -> HTTPClientSettings
 withClientTls httpCert =
-    mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ HTTPCertificate httpCert}
+
+-- | Adds a client p12 certificate to do client's TLS authentication
+withClientTlsP12 :: P12Cert -> HTTPClientSettings
+withClientTlsP12 p12Cert =
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ P12Certificate p12Cert}
 
 withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
 withMbClientTls (Just cert) = withClientTls cert
@@ -276,6 +318,13 @@ data HTTPResponseMasked
     deriving stock (Show, Eq, Generic)
     deriving anyclass (ToJSON)
 
+data ClientCert
+  = HTTPCertificate HTTPCert
+  | P12Certificate P12Cert
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable ClientCert
+
 data HTTPCert
   = HTTPCert
     { getCert      :: B.ByteString
@@ -292,6 +341,15 @@ data HTTPCert
 
 instance Hashable HTTPCert
 
+data P12Cert
+  = P12Cert
+    { getPfx        :: B.ByteString
+    , getPassPhrase :: B.ByteString
+    }
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable P12Cert
+
 data HTTPMethod
   = Get
   | Put
@@ -307,29 +365,44 @@ data HTTPMethod
 type HeaderName = Text
 type HeaderValue = Text
 
+data RequestType = INTERNAL | EXTERNAL
+  deriving stock (Eq,Show,Generic)
+  deriving anyclass (FromJSON,ToJSON)
+
 data HttpApiCallLogEntry = HttpApiCallLogEntry
-  { url         :: Text
-  , method      :: Text
-  , req_headers :: A.Value
+  { url         :: Maybe Text
+  , method      :: Maybe Text
+  , req_headers :: Maybe A.Value
   , req_body    :: Maybe A.Value
-  , res_code    :: Int
-  , res_body    :: A.Value
-  , res_headers :: A.Value
+  , res_code    :: Maybe Int
+  , res_body    :: Maybe A.Value
+  , res_headers :: Maybe A.Value
   , latency     :: Integer
+  , req_type    :: RequestType
   }
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
 
-mkHttpApiCallLogEntry :: Integer -> HTTPRequestMasked -> HTTPResponseMasked -> HttpApiCallLogEntry
-mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
-  { url = req.getRequestURL
-  , method = show $ req.getRequestMethod
-  , req_headers = A.toJSON $ req.getRequestHeaders
-  , req_body = req.getRequestBody
-  , res_code = res.getResponseCode
-  , res_body = res.getResponseBody
-  , res_headers = A.toJSON $ res.getResponseHeaders
+data AwaitingError = AwaitingTimeout | ForkedFlowError Text
+  deriving stock (Show, Eq, Ord, Generic)
+
+newtype HttpManagerNotFound = HttpManagerNotFound Text
+ deriving stock (Show)
+ deriving (Eq) via Text
+
+instance Exception HttpManagerNotFound
+
+mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> RequestType -> HttpApiCallLogEntry
+mkHttpApiCallLogEntry lat req res reqType = HttpApiCallLogEntry
+  { url = (\x -> x.getRequestURL) <$> req
+  , method = (\x -> show $ x.getRequestMethod) <$> req
+  , req_headers = (\x -> A.toJSON $ x.getRequestHeaders) <$> req
+  , req_body = join $ (\x -> x.getRequestBody) <$> req
+  , res_code = (\x -> x.getResponseCode) <$> res
+  , res_body = (\x -> x.getResponseBody) <$> res
+  , res_headers = (\x -> A.toJSON $ x.getResponseHeaders) <$> res
   , latency = lat
+  , req_type = reqType
   }
 
 
@@ -338,6 +411,13 @@ data HTTPIOException
   = HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequestMasked
+    }
+  deriving (Eq, Generic, ToJSON)
+
+data HTTPResponseException
+  = HTTPResponseException
+    { errorMessage :: Text
+    , response      :: HTTPResponseMasked
     }
   deriving (Eq, Generic, ToJSON)
 
@@ -433,8 +513,12 @@ withJSONBody body req@HTTPRequest{getRequestHeaders} =
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
 
-maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequestMasked
-maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
+data HttpData = HttpRequest HTTPRequest | HttpResponse HTTPResponse
+
+type MaskReqRespBody = HttpData -> A.Value
+
+maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> Maybe MaskReqRespBody-> HTTPRequestMasked
+maskHTTPRequest mbMaskConfig request mbMaskReqBody = HTTPRequestMasked
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     , getRequestMethod = request.getRequestMethod
@@ -449,13 +533,13 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
-    maskedRequestBody =
-          parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
-        . LB.toStrict
-        . T.getLBinaryString <$> requestBody
+    maskedRequestBody = case mbMaskReqBody of
+                          Just mskReqBody -> Just . mskReqBody $ HttpRequest request
+                          Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders) . LB.toStrict . T.getLBinaryString <$> requestBody
 
-maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponseMasked
-maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
+
+maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> Maybe MaskReqRespBody-> HTTPResponseMasked
+maskHTTPResponse mbMaskConfig response mbMaskResBody = HTTPResponseMasked
   { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
   , getResponseBody = maskedResponseBody
   , getResponseCode = response.getResponseCode
@@ -467,8 +551,32 @@ maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
     responseBody = response.getResponseBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+    
+    maskedResponseBody = case mbMaskResBody of
+                          Just mskResBody -> mskResBody $ HttpResponse response
+                          Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders) . LB.toStrict . T.getLBinaryString $ responseBody
 
-    maskedResponseBody =
-      parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
-        . LB.toStrict
-        $ T.getLBinaryString responseBody
+
+httpBypassProxyList :: Maybe Text
+httpBypassProxyList  = Conf.lookupEnvT "HTTP_PROXY_BYPASS_LIST"
+
+decodeFromText :: FromJSON a => Text -> Maybe a
+decodeFromText = A.decode . LB.fromStrict . Text.encodeUtf8
+
+shouldBypassProxy :: Maybe Text -> Bool
+shouldBypassProxy mHostname = 
+  case (mHostname, httpBypassProxyList) of
+    (Just hostname, Just bypassProxyListText) -> 
+      let mUrlList =  decodeFromText bypassProxyListText :: Maybe [Text]
+          urlList = fromMaybe [] mUrlList
+      in List.any (\x -> Text.isInfixOf x hostname) urlList
+    (_ , _ ) -> False
+
+checkARTEnabled :: Text
+checkARTEnabled = fromMaybe "False" $ Conf.lookupEnvT "ART_ENABLED"
+
+isART :: Bool
+isART = case checkARTEnabled of
+  "true" -> True
+  "True" -> True
+  _      -> False

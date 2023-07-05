@@ -21,6 +21,7 @@ module EulerHS.Language
     Y.logErrorV,
     Y.logDebugV,
     Y.logWarningV,
+    Y.logException,
     -- * Calling external services
     Y.callAPI,
     Y.callAPI',
@@ -28,6 +29,8 @@ module EulerHS.Language
     Y.callHTTP',
     Y.callHTTPWithCert,
     Y.callHTTPWithManager,
+    Y.callHTTPWithCert',
+    Y.callHTTPWithManager',
     -- * other
     Y.runIO,
     Y.withRunFlow,

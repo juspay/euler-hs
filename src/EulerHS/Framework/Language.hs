@@ -7,10 +7,12 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-signatures -Wno-orphans #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
 
 module EulerHS.Framework.Language
   (
@@ -19,7 +21,6 @@ module EulerHS.Framework.Language
   , FlowMethod(..)
   , MonadFlow(..)
   , ReaderFlow
-  , AwaitingError(..)
   , HttpManagerNotFound(..)
   -- ** Extra methods
   -- *** Logging
@@ -40,6 +41,7 @@ module EulerHS.Framework.Language
   , logDebugV
   , logWarningM
   , logWarningV
+  , logException
   -- *** PublishSubscribe
   , unpackLanguagePubSub
   -- *** Working with external services
@@ -50,6 +52,8 @@ module EulerHS.Framework.Language
   -- *** Legacy
   , callHTTPWithCert
   , callHTTPWithManager
+  , callHTTPWithCert' 
+  , callHTTPWithManager'
   -- *** Others
   , runIO
   , withRunFlow
@@ -69,13 +73,16 @@ module EulerHS.Framework.Language
 
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
                                       MonadThrow (throwM))
+import qualified Control.Exception as Exception
 import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.Except (withExceptT)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
 import qualified Data.Aeson as A
+import           Data.Data (Data, toConstr)
 import           Data.Maybe (fromJust)
 import qualified Data.Text as Text
+import           Data.Typeable (typeOf)
 import           Network.HTTP.Client (Manager)
 import           Servant.Client (BaseUrl, ClientError (ConnectionError))
 
@@ -85,14 +92,14 @@ import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  Microseconds, SafeFlowGUID)
 import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
-                                  HTTPResponse, withClientTls)
+                                  HTTPResponse, withClientTls, HttpManagerNotFound(..), AwaitingError, MaskReqRespBody)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
 import qualified EulerHS.KVDB.Types as T
-import           EulerHS.Logger.Language (Logger, logMessage')
+import           EulerHS.Logger.Language (Logger, masterLogger)
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
-                                       Message (Message))
+                                       Message (Message), ExceptionEntry(..))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import qualified EulerHS.PubSub.Language as PSL
@@ -102,15 +109,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
 import qualified EulerHS.SqlDB.Types as T
 import           Euler.Events.MetricApi.MetricApi
 import qualified Juspay.Extra.Config as Conf
-
-data AwaitingError = AwaitingTimeout | ForkedFlowError Text
-  deriving stock (Show, Eq, Ord, Generic)
-
-newtype HttpManagerNotFound = HttpManagerNotFound Text
- deriving stock (Show)
- deriving (Eq) via Text
-
-instance Exception HttpManagerNotFound
+import EulerHS.KVConnector.Types
 
 -- | Flow language.
 data FlowMethod (next :: Type) where
@@ -138,6 +137,7 @@ data FlowMethod (next :: Type) where
     :: HasCallStack
     => HTTPRequest
     -> Manager
+    -> Maybe MaskReqRespBody
     -> (Either Text HTTPResponse -> next)
     -> FlowMethod next
 
@@ -172,7 +172,52 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  SetLoggerContext
+    :: HasCallStack
+     => Text
+    -> Text
+    -> (() -> next)
+    -> FlowMethod next
+  
+  GetLoggerContext
+    :: HasCallStack
+     => Text
+    -> ((Maybe Text) -> next)
+    -> FlowMethod next
+
+  SetLoggerContextMap
+    :: HasCallStack
+    => HashMap Text Text
+    -> (() -> next)
+    -> FlowMethod next
+  
+  ModifyOption
+    :: HasCallStack
+    => Text
+    -> ( a -> a )
+    -> ((Maybe a, Maybe a) -> next)
+    -> FlowMethod next
+
   DelOption
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  GetOptionLocal
+    :: HasCallStack
+    => Text
+    -> (Maybe a -> next)
+    -> FlowMethod next
+
+  SetOptionLocal
+    :: HasCallStack
+    => Text
+    -> a
+    -> (() -> next)
+    -> FlowMethod next
+
+  DelOptionLocal
     :: HasCallStack
     => Text
     -> (() -> next)
@@ -188,6 +233,13 @@ data FlowMethod (next :: Type) where
     :: HasCallStack
     => Text
     -> ConfigEntry
+    -> (() -> next)
+    -> FlowMethod next
+
+  ModifyConfig
+    :: HasCallStack
+    => Text
+    -> (ConfigEntry -> ConfigEntry)
     -> (() -> next)
     -> FlowMethod next
 
@@ -361,15 +413,23 @@ instance Functor FlowMethod where
     LookupHTTPManager mSel cont -> LookupHTTPManager mSel (f . cont)
     CallServantAPI mgr url client cont -> CallServantAPI mgr url client (f . cont)
     GetHTTPManager settings cont -> GetHTTPManager settings (f . cont)
-    CallHTTP req mgr cont -> CallHTTP req mgr (f . cont)
+    CallHTTP req mgr mskReqRespBody cont -> CallHTTP req mgr mskReqRespBody (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
     WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
+    SetLoggerContext k v cont -> SetLoggerContext k v (f . cont)
+    GetLoggerContext k cont -> GetLoggerContext k (f . cont)
+    SetLoggerContextMap v cont -> SetLoggerContextMap v (f . cont)
+    ModifyOption k fn cont -> ModifyOption k fn (f . cont)
     DelOption k cont -> DelOption k (f . cont)
+    GetOptionLocal k cont -> GetOptionLocal k (f . cont)
+    SetOptionLocal k v cont -> SetOptionLocal k v (f . cont)
+    DelOptionLocal k cont -> DelOptionLocal k (f . cont)
     GetConfig k cont -> GetConfig k (f . cont)
     SetConfig k v cont -> SetConfig k v (f . cont)
+    ModifyConfig k modification cont -> ModifyConfig k modification (f . cont)
     TrySetConfig k v cont -> TrySetConfig k v (f . cont)
     DelConfig k cont -> DelConfig k (f . cont)
     AcquireConfigLock k cont -> AcquireConfigLock k (f . cont)
@@ -396,6 +456,7 @@ instance Functor FlowMethod where
     RunPubSub pubSub cont -> RunPubSub pubSub (f . cont)
     WithModifiedRuntime g innerFlow cont ->
       WithModifiedRuntime g innerFlow (f . cont)
+
 
 newtype Flow (a :: Type) = Flow (F FlowMethod a)
   deriving newtype (Functor, Applicative, Monad, MonadFree FlowMethod)
@@ -486,6 +547,7 @@ class (MonadMask m) => MonadFlow m where
     :: HasCallStack
     => Manager
     -> HTTPRequest
+    -> Maybe MaskReqRespBody
     -> m (Either Text.Text HTTPResponse)
 
   -- | Evaluates a logging action.
@@ -528,12 +590,28 @@ class (MonadMask m) => MonadFlow m where
   -- >    delOption MerchantIdKey
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
 
+  setLoggerContext :: (HasCallStack) => Text -> Text -> m ()
+
+  getLoggerContext :: (HasCallStack) => Text -> m (Maybe Text)
+
+  setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> m ()
+
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v,Maybe v)
+
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
+
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m (Maybe v)
+
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
+
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
   getConfig :: HasCallStack => Text -> m (Maybe ConfigEntry)
 
   setConfig :: HasCallStack => Text -> ConfigEntry -> m ()
+
+  modifyConfig :: HasCallStack => Text -> (ConfigEntry -> ConfigEntry) -> m ()
 
   trySetConfig :: HasCallStack => Text -> ConfigEntry -> m (Maybe ())
 
@@ -695,13 +773,7 @@ class (MonadMask m) => MonadFlow m where
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
   throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
-  throwException ex = do
-    -- Doubt: Should we just print the exception details without the
-    -- contextual details that logError prints. As finding the message inside logError is a bit
-    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
-    -- contextual details.
-    logExceptionCallStack ex
-    throwExceptionWithoutCallStack ex
+  throwException = throwM
 
   throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
   throwExceptionWithoutCallStack = throwM
@@ -781,6 +853,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+  fork
+    :: HasCallStack
+    => m a -> m ()
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do
@@ -793,7 +869,7 @@ instance MonadFlow Flow where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager settings = liftFC $ GetHTTPManager settings id
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = liftFC $ CallHTTP url mgr id
+  callHTTPUsingManager mgr url mskReqRespBody = liftFC $ CallHTTP url mgr mskReqRespBody id
   {-# INLINEABLE evalLogger' #-}
   evalLogger' logAct = liftFC $ EvalLogger logAct id
   {-# INLINEABLE runIO' #-}
@@ -804,15 +880,39 @@ instance MonadFlow Flow where
   {-# INLINEABLE setOption #-}
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext :: (HasCallStack) => Text -> Text -> Flow ()
+  setLoggerContext k v = liftFC $ SetLoggerContext k v id
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext :: (HasCallStack) => Text -> Flow (Maybe Text)
+  getLoggerContext k = liftFC $ GetLoggerContext k id
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> Flow ()
+  setLoggerContextMap v = liftFC $ SetLoggerContextMap v id
+  {-# INLINEABLE modifyOption #-}
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v,Maybe v)
+  modifyOption k fn = liftFC $ ModifyOption  (mkOptionKey @k @v k) fn id
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
+  getOptionLocal k = liftFC $ GetOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
+  setOptionLocal k v = liftFC $ SetOptionLocal (mkOptionKey @k @v k) v id
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
+  delOptionLocal k = liftFC $ DelOptionLocal (mkOptionKey @k @v k) id
   {-# INLINEABLE getConfig #-}
   getConfig :: HasCallStack => Text -> Flow (Maybe ConfigEntry)
   getConfig k = liftFC $ GetConfig k id
   {-# INLINEABLE setConfig #-}
   setConfig :: HasCallStack => Text -> ConfigEntry -> Flow ()
   setConfig k v = liftFC $ SetConfig k v id
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig :: HasCallStack => Text -> (ConfigEntry -> ConfigEntry) -> Flow ()
+  modifyConfig k modification = liftFC $ ModifyConfig k modification id
   {-# INLINEABLE trySetConfig #-}
   trySetConfig :: HasCallStack => Text -> ConfigEntry -> Flow (Maybe ())
   trySetConfig k v = liftFC $ TrySetConfig k v id
@@ -869,6 +969,9 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    forkFlow "test" flow
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -880,7 +983,7 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -889,12 +992,28 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption k = lift . modifyOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -939,6 +1058,10 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    env <- ask
+    lift . fork $ runReaderT flow env
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -950,7 +1073,7 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -959,12 +1082,28 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1009,6 +1148,10 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    s <- get
+    lift . fork $ evalStateT flow s
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1020,7 +1163,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1029,12 +1172,28 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1079,6 +1238,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1090,7 +1251,7 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1099,12 +1260,28 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1149,6 +1326,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1160,7 +1339,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1169,12 +1348,28 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1219,6 +1414,9 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
+
 
 
 --
@@ -1267,18 +1465,27 @@ callHTTP'
   :: (HasCallStack, MonadFlow m)
   => Maybe ManagerSelector              -- ^ Selector
   -> HTTPRequest                        -- ^ remote url 'Text'
+  -> Maybe MaskReqRespBody
   -> m (Either Text.Text HTTPResponse)  -- ^ result
-callHTTP' mSel req=
-    runExceptT $ withExceptT show (getMgr mSel) >>=
-    ExceptT . flip callHTTPUsingManager req
-
+callHTTP' mSel req mbMskReqRespBody = do
+    runExceptT $ withExceptT show (getMgr mSel) >>= (\mngr -> ExceptT $ callHTTPUsingManager mngr req mbMskReqRespBody)
+    
 {-# DEPRECATED callHTTPWithManager "Use callHTTP' instead. This method has a confusing name, as it accepts a selector not a manager." #-}
 callHTTPWithManager
   :: (HasCallStack, MonadFlow m)
   => Maybe ManagerSelector              -- ^ Selector
   -> HTTPRequest                        -- ^ remote url 'Text'
   -> m (Either Text.Text HTTPResponse)  -- ^ result
-callHTTPWithManager = callHTTP'
+callHTTPWithManager mSel req = callHTTP' mSel req Nothing
+
+-- applies custom masking function while logging outgoing request
+callHTTPWithManager'
+  :: (HasCallStack, MonadFlow m)
+  => Maybe ManagerSelector              -- ^ Selector
+  -> HTTPRequest                        -- ^ remote url 'Text'
+  -> Maybe MaskReqRespBody
+  -> m (Either Text.Text HTTPResponse)  -- ^ result
+callHTTPWithManager' = callHTTP'
 
 -- | The same as callHTTP' but uses the default HTTP manager.
 --
@@ -1294,10 +1501,15 @@ callHTTP url = callHTTPWithManager Nothing url
 
 {-# DEPRECATED callHTTPWithCert    "Use getHTTPManager/callHTTPUsingManager instead. This method does not allow custom CA store." #-}
 callHTTPWithCert :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> m (Either Text HTTPResponse)
-callHTTPWithCert req cert = do
+callHTTPWithCert req cert  = do
   mgr <- maybe getDefaultManager (getHTTPManager . withClientTls) cert
-  callHTTPUsingManager mgr req
+  callHTTPUsingManager mgr req Nothing
 
+-- applies custom masking function while logging outgoing request
+callHTTPWithCert' :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> Maybe MaskReqRespBody-> m (Either Text HTTPResponse)
+callHTTPWithCert' req cert mskReqRespBody = do
+  mgr <- maybe getDefaultManager (getHTTPManager . withClientTls) cert
+  callHTTPUsingManager mgr req mskReqRespBody
 
 --
 -- Well-typed HTTP calls
@@ -1416,12 +1628,15 @@ withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
-forkFlow description flow = void $ forkFlow' description $ do
-  eitherResult <- runSafeFlow flow
-  case eitherResult of
-    Left msg -> logError ("forkFlow" :: Text) msg
-    Right _  -> pure ()
+forkFlow :: HasCallStack => Description -> Flow a -> Flow ()
+forkFlow description flow = do
+  flowGUID <- generateGUID
+  void $ forkFlow'' description flowGUID $ do
+    void $ setLoggerContext "flow_guid" flowGUID
+    eitherResult <- runSafeFlow flow
+    case eitherResult of
+      Left msg -> logError ("forkFlow" :: Text) msg
+      Right _  -> pure ()
 
 -- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
 -- to reap results from the flow being forked.
@@ -1434,6 +1649,15 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
+forkFlow'' :: HasCallStack =>
+  Description -> ForkGUID -> Flow a -> Flow (Awaitable (Either Text a))
+forkFlow'' description flowGUID flow = do
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+    liftFC $ Fork description flowGUID flow id
+
 forkFlow' :: HasCallStack =>
   Description -> Flow a -> Flow (Awaitable (Either Text a))
 forkFlow' description flow = do
@@ -1447,15 +1671,15 @@ forkFlow' description flow = do
 
 logM :: forall (tag :: Type) (m :: Type -> Type) msg val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => LogLevel -> tag -> msg -> val -> m ()
-logM logLvl tag m v = evalLogger' $ logMessage' logLvl tag $ Message (Just $ toJSON m) (Just $ toJSON v)
+logM logLvl tag m v = evalLogger' $ masterLogger logLvl tag "DOMAIN" Nothing Nothing Nothing Nothing Nothing  $ Message (Just $ toJSON m) (Just $ toJSON v)
 
 log :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag) => LogLevel -> tag -> Text -> m ()
-log logLvl tag msg = evalLogger' $ logMessage' logLvl tag $ Message (Just $ A.toJSON msg) Nothing
+log logLvl tag msg = evalLogger' $ masterLogger logLvl tag "DOMAIN" Nothing Nothing Nothing Nothing Nothing $ Message (Just $ A.toJSON msg) Nothing
 
 logV :: forall (tag :: Type) (m :: Type -> Type) val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => LogLevel -> tag -> val -> m ()
-logV logLvl tag v = evalLogger' $ logMessage' logLvl tag $ Message Nothing (Just $ toJSON v)
+logV logLvl tag v = evalLogger' $ masterLogger logLvl tag "DOMAIN" Nothing Nothing Nothing Nothing Nothing $ Message Nothing (Just $ toJSON v)
 
 -- | Log message with Info level.
 --
@@ -1517,6 +1741,36 @@ logWarning = log Warning
 logWarningV :: forall (tag :: Type) (m :: Type -> Type) val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logWarningV = logV Warning
+
+deriving instance Data Exception.ArithException
+deriving instance Data Exception.ArrayException
+deriving instance Data Exception.AsyncException
+
+logException :: (HasCallStack, MonadFlow m) => SomeException -> m ()
+logException exception =
+  logErrorV ("ERROR_TRACKING" :: Text) exceptionLogEntry
+  where exceptionLogEntry = fromMaybe (exceptionLogDefault exception)
+          $ exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArithException)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArrayException)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.AssertionFailed)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.AsyncException)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NonTermination)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NoMethodError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NestedAtomically)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.TypeError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.BlockedIndefinitelyOnMVar)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.BlockedIndefinitelyOnSTM)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.AllocationLimitExceeded)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.Deadlock)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.PatternMatchFail)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecConError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecSelError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecUpdError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
+        exceptionLogWithConstructor ex = ExceptionEntry (show . toConstr $ ex) (displayException ex) (show $ typeOf ex) "Exception"
+        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) (displayException ex) (show $ typeOf ex) "Exception"
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.

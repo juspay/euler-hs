@@ -41,12 +41,18 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
+  , rZAdd
+  , rZRangeByScore
+  , rZRangeByScoreWithLimit
+  , rZRem
+  , rZRemRangeByScore
+  , rZCard
   -- * Logging
   , AppException(..)
   , throwOnFailedWithLog
   , checkFailedWithLog
   , updateLoggerContext
-  , withLoggerContext
+  -- , withLoggerContext
   , logInfoT
   , logWarningT
   , logErrorT
@@ -87,8 +93,8 @@ import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBStatus)
 import           EulerHS.Logger.Types (LogContext)
 import           EulerHS.Prelude hiding (get, id)
-import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
-                                  LoggerRuntime (..))
+import           EulerHS.Runtime ( FlowRuntime (..))
+import           EulerHS.Logger.Runtime ( LoggerRuntime (..), CoreRuntime(..))
 import           EulerHS.SqlDB.Language (SqlDB, insertRowReturningMySQL,
                                          insertRowsReturningList)
 import qualified EulerHS.SqlDB.Types as T
@@ -684,16 +690,102 @@ rSismember cName k v = do
       L.logError @Text "Redis sismember" $ show err
       pure res
 
-withLoggerContext :: (HasCallStack, L.MonadFlow m) => (LogContext -> LogContext) -> L.Flow a -> m a
-withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
+-- withLoggerContext :: (HasCallStack, L.MonadFlow m) => (LogContext -> LogContext) -> L.Flow a -> m a
+-- withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
 
-updateLoggerContext :: (LogContext -> LogContext) -> FlowRuntime -> FlowRuntime
-updateLoggerContext updateLCtx rt@FlowRuntime{..} =
- rt { _coreRuntime = _coreRuntime {_loggerRuntime = newLrt} }
+updateLoggerContext :: (IORef LogContext -> IO (IORef LogContext)) -> FlowRuntime -> IO (FlowRuntime)
+updateLoggerContext updateLCtx rt@FlowRuntime{..} = do
+  newLrt <- newLrtIO
+  pure $ rt { _coreRuntime = _coreRuntime {_loggerRuntime = newLrt} }
   where
-    newLrt :: LoggerRuntime
-    newLrt = case _loggerRuntime _coreRuntime of
-              MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+    newLrtIO :: IO LoggerRuntime
+    newLrtIO = case _loggerRuntime _coreRuntime of
+              MemoryLoggerRuntime a lc b c d -> do
+                newCtx <- updateLCtx lc
+                pure $ MemoryLoggerRuntime a newCtx b c d
               -- the next line is courtesy to Kyrylo Havryliuk ;-)
-              LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}
+              LoggerRuntime{_logContext, ..} -> do
+                newCtx <- updateLCtx _logContext
+                pure $ LoggerRuntime {_logContext = newCtx, ..}
 
+rZAdd :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> [(Double,ByteValue)]
+  -> m (Either KVDBReply Integer)
+rZAdd cName k v = do
+  res <- L.runKVDB cName $ L.zadd k v
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis setOpts" $ show err
+      pure res
+
+rZRangeByScore :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> Double
+  -> Double
+  -> m (Either KVDBReply [L.KVDBValue])
+rZRangeByScore cName k minScore maxScore = do
+  res <- L.runKVDB cName $ L.zrangebyscore k minScore maxScore
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRangeByScore" $ show err
+      pure res
+
+rZRangeByScoreWithLimit :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> Double
+  -> Double
+  -> Integer
+  -> Integer
+  -> m (Either KVDBReply [L.KVDBValue])
+rZRangeByScoreWithLimit cName k minScore maxScore offset count = do
+  res <- L.runKVDB cName $ L.zrangebyscorewithlimit k minScore maxScore offset count
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRangeByScoreWithLimit" $ show err
+      pure res
+
+rZRem :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> [L.KVDBValue]
+  -> m (Either KVDBReply Integer)
+rZRem cName k v = do
+  res <- L.runKVDB cName $ L.zrem k v
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRem" $ show err
+      pure res
+
+rZRemRangeByScore :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> Double
+  -> Double
+  -> m (Either KVDBReply Integer)
+rZRemRangeByScore cName k minScore maxScore = do
+  res <- L.runKVDB cName $ L.zremrangebyscore k minScore maxScore
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRemRangeByScore" $ show err
+      pure res
+
+rZCard :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> m (Either KVDBReply Integer)
+rZCard cName k = do
+  res <- L.runKVDB cName $ L.zcard k
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZCard" $ show err
+      pure res

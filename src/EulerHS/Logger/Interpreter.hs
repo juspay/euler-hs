@@ -11,12 +11,13 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import           Data.IORef (readIORef)
 import           EulerHS.Common (FlowGUID)
 import           EulerHS.Logger.Language (Logger, LoggerMethod (LogMessage))
 import qualified EulerHS.Logger.Runtime as R
 import qualified EulerHS.Logger.TinyLogger as Impl
 import qualified EulerHS.Logger.Types as T
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (readIORef)
 
 interpretLogger :: Maybe FlowGUID -> R.LoggerRuntime -> LoggerMethod a -> IO a
 
@@ -24,15 +25,16 @@ interpretLogger :: Maybe FlowGUID -> R.LoggerRuntime -> LoggerMethod a -> IO a
 interpretLogger
   mbFlowGuid
   (R.MemoryLoggerRuntime flowFormatter logContext logLevel logsVar cntVar)
-  (LogMessage msgLogLvl tag msg next) =
+  (LogMessage msgLogLvl versionMessage next) =
 
   fmap next $
-    case compare logLevel msgLogLvl of
-      GT -> pure ()
+    case logLevel <= msgLogLvl of
+      False -> pure ()
       _  -> do
         formatter <- flowFormatter mbFlowGuid
         !msgNum   <- R.incLogCounter cntVar
-        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum logContext
+        x <- readIORef logContext
+        let msgBuilder = formatter $ T.convertToPendingMsg mbFlowGuid msgLogLvl msgNum x versionMessage
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
               T.SimpleText txt -> txt
@@ -46,14 +48,15 @@ interpretLogger
 interpretLogger
   mbFlowGuid
   (R.LoggerRuntime flowFormatter logContext logLevel _ _ cntVar _ handle severityCounterHandle)
-  (LogMessage msgLogLevel tag msg next) =
+  (LogMessage msgLogLevel versionMessage next) =
 
   fmap next $
-    case compare logLevel msgLogLevel of
-      GT -> pure ()
+    case logLevel <= msgLogLevel of
+      False -> pure ()
       _  -> do
         msgNum    <- R.incLogCounter cntVar
-        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum logContext
+        x <- readIORef logContext
+        Impl.sendPendingMsg flowFormatter handle $ T.convertToPendingMsg mbFlowGuid msgLogLevel msgNum x versionMessage
         case severityCounterHandle of
           Nothing -> pure ()
           Just scHandle -> scHandle.incCounter msgLogLevel

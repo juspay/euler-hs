@@ -14,7 +14,6 @@ import           Control.Monad (void)
 import           Data.Text (Text, pack)
 import           Juspay.Extra.Parsing (Parsed (Failed, Result))
 import           EulerHS.Language (MonadFlow, logError, throwException)
-import           EulerHS.Types (DBError)
 import           GHC.Generics (Generic)
 import           GHC.Stack (HasCallStack)
 import           Named (NamedF (Arg), type (:!))
@@ -28,8 +27,8 @@ Parse a loaded DB result and throw errors.
     `Euler.Types.Errors.DomainTypeParseError`
 -}
 toDomain
-  :: (HasCallStack, MonadFlow m)
-  => Either DBError a
+  :: (HasCallStack, MonadFlow m, Show err)
+  => Either err a
   -> (a -> Parsed b)
   -> "function_name" :! Text -- Name of query function for error log
   -> "parser_name" :! Text
@@ -42,8 +41,8 @@ toDomain eitherRes parser functionName parserName = do
 Maybe a, [a], etc.
 -}
 toDomainAll
-  :: (HasCallStack, MonadFlow m, Traversable f)
-  => Either DBError (f a)
+  :: (HasCallStack, MonadFlow m, Traversable f, Show err)
+  => Either err (f a)
   -> (a -> Parsed b)
   -> "function_name" :! Text
   -> "parser_name" :! Text
@@ -54,8 +53,8 @@ toDomainAll eitherRes parser functionName parserName = do
 
 {- | What the name says silly! -}
 throwOnDBError
-  :: (HasCallStack, MonadFlow m)
-  => Either DBError ()
+  :: (HasCallStack, MonadFlow m, Show err)
+  => Either err ()
   -> "function_name" :! Text
   -> m ()
 throwOnDBError res = void . extractDBResult res
@@ -77,8 +76,8 @@ throwOnParseError parseResult (Arg parserName) = case parseResult of
 -----------------------------------------------------------------------------
 
 extractDBResult
-  :: (HasCallStack, MonadFlow m)
-  => Either DBError a
+  :: (HasCallStack, MonadFlow m, Show err)
+  => Either err a
   -> "function_name" :! Text
   -> m a
 extractDBResult eitherResult (Arg functionName) = case eitherResult of

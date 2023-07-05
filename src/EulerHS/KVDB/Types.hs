@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module EulerHS.KVDB.Types
   (
@@ -30,6 +31,7 @@ module EulerHS.KVDB.Types
   , kvdbToNative
   ) where
 
+import           Data.Data (Data)
 import           Data.Time (NominalDiffTime)
 import qualified Database.Redis as RD
 import           EulerHS.Prelude
@@ -46,7 +48,7 @@ data KVDBError
   = KVDBConnectionAlreadyExists
   | KVDBConnectionDoesNotExist
   | KVDBConnectionFailed
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Data)
 
 data KVDBReplyF bs
   = SingleLine bs
@@ -56,7 +58,7 @@ data KVDBReplyF bs
   | MultiBulk (Maybe [KVDBReplyF bs])
   | ExceptionMessage String
   | KVDBError KVDBError String
-  deriving stock (Eq, Show, Generic, Functor)
+  deriving stock (Eq, Show, Generic, Functor, Data)
 
 type KVDBReply = KVDBReplyF ByteString
 
@@ -119,6 +121,7 @@ data RedisConfig = RedisConfig
     , connectPort           :: Word16
     , connectAuth           :: Maybe Text
     , connectDatabase       :: Integer
+    , connectReadOnly       :: Bool
     , connectMaxConnections :: Int
     , connectMaxIdleTime    :: NominalDiffTime
     , connectTimeout        :: Maybe NominalDiffTime
@@ -130,6 +133,7 @@ defaultKVDBConnConfig = RedisConfig
     , connectPort           = 6379
     , connectAuth           = Nothing
     , connectDatabase       = 0
+    , connectReadOnly       = False
     , connectMaxConnections = 50
     , connectMaxIdleTime    = 30
     , connectTimeout        = Nothing
@@ -141,6 +145,7 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
   { RD.connectHost           = connectHost
   , RD.connectPort           = RD.PortNumber $ toEnum $ fromEnum connectPort
   , RD.connectAuth           = encodeUtf8 <$> connectAuth
+  , RD.connectReadOnly       = connectReadOnly
   , RD.connectDatabase       = connectDatabase
   , RD.connectMaxConnections = connectMaxConnections
   , RD.connectMaxIdleTime    = connectMaxIdleTime
@@ -164,7 +169,7 @@ mkRedisConn = \case
 
 -- | Connect with the given config to the database.
 createRedisConn :: RedisConfig -> IO RD.Connection
-createRedisConn = RD.connect . toRedisConnectInfo
+createRedisConn = RD.connect . toRedisConnectInfo 
 
 -- | Connect with the given cluster config to the database.
 createClusterRedisConn :: RedisConfig -> IO RD.Connection

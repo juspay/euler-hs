@@ -10,11 +10,13 @@ module EulerHS.SqlDB.Language
   -- ** Methods
   , findRow
   , findRows
+  , countRows
   , insertRows
   , insertRowsReturningList
   , updateRows
   , updateRowsReturningList
   , deleteRows
+  , deleteRowsReturningList
   , deleteRowsReturningListPG
   , updateRowsReturningListPG
   , insertRowReturningMySQL
@@ -63,6 +65,12 @@ findRow
   -> SqlDB beM (Maybe a)
 findRow = sqlDBMethod . T.rtSelectReturningOne
 
+countRows
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be Int)
+  => B.SqlSelect be Int
+  -> SqlDB beM Int
+countRows = (fromMaybe 0 <$>) . sqlDBMethod . T.rtSelectReturningOne
+
 -- | Insert
 insertRows
   :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
@@ -98,6 +106,14 @@ deleteRows
   => B.SqlDelete be table
   -> SqlDB beM ()
 deleteRows = sqlDBMethod . T.rtDelete
+
+
+deleteRowsReturningList
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM,
+      B.Beamable table, B.FromBackendRow be (table Identity))
+  => B.SqlDelete be table
+  -> SqlDB beM [table Identity]
+deleteRowsReturningList = sqlDBMethod . T.rtDeleteReturningList
 
 
 -- Postgres only extra methods

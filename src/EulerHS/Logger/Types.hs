@@ -20,12 +20,25 @@ module EulerHS.Logger.Types
     , LogCounter
     , LogMaskingConfig (..)
     , MaskKeyType (..)
+    , ExceptionEntry (..)
+    , VersionLoggerMessage(..)
+    , Action
+    , Category
+    , Entity
+    , Latency
+    , RespCode
+    , ErrorL(..)
     -- ** defaults
     , defaultLoggerConfig
     , defaultMessageFormatter
     , showingMessageFormatter
     , defaultFlowFormatter
     , builderToByteString
+    , getFlowGuuid
+    , getLogLevel
+    , getLogContext
+    , getMessageNumber
+    , convertToPendingMsg
     ) where
 
 import qualified EulerHS.Common as T
@@ -110,21 +123,39 @@ data LoggerConfig
     , _logMaskingConfig :: Maybe LogMaskingConfig
     } deriving (Generic, Show, Read)
 
-data PendingMsg = PendingMsg
-  !(Maybe T.FlowGUID)
-  !LogLevel
-  !Tag
-  !Message
-  !MessageNumber
-  !LogContext
+data PendingMsg =
+  V1 !(Maybe T.FlowGUID) !LogLevel !Tag !Message !MessageNumber !LogContext
+  | V2 !(Maybe T.FlowGUID) !LogLevel !Category !(Maybe Action) !(Maybe Entity) !(Maybe ErrorL) !(Maybe Latency) !(Maybe RespCode) !Message !MessageNumber !LogContext
   deriving (Show)
+
+type Category = Text
+type Action = Text
+type Entity = Text
+
+data ErrorL  = ErrorL !(Maybe ErrCode) ErrCategory ErrReason -- kept as maybe till unifiction is done
+    deriving Show
+
+type ErrCode = Text
+type ErrCategory = Text
+type ErrReason = Text
+type Latency = Integer
+type RespCode = Int
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
 
+data ExceptionEntry = ExceptionEntry
+  { error_code    :: Text
+  , error_message :: String
+  , jp_error_code :: Text
+  , source        :: Text
+  } deriving (Generic, ToJSON)
+
 defaultMessageFormatter :: MessageFormatter
-defaultMessageFormatter (PendingMsg _ lvl tag msg _ _) =
+defaultMessageFormatter (V1 _ lvl tag msg _ _) =
   SimpleString $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| TE.decodeUtf8 (A.encode (msgMessage msg)) |+ ""
+defaultMessageFormatter (V2 _ lvl category action _ _ _ _ msg _ _) =
+  SimpleString $ "[" +|| lvl ||+ "] <" +| category |+ "> <" +| action |+ "> " +| TE.decodeUtf8 (A.encode (msgMessage msg)) |+ ""
 
 showingMessageFormatter :: MessageFormatter
 showingMessageFormatter = SimpleString . show
@@ -147,3 +178,30 @@ defaultFlowFormatter _ = pure defaultMessageFormatter
 
 builderToByteString :: LogMsg.Builder -> LBS.ByteString
 builderToByteString = LogMsg.eval
+
+
+data VersionLoggerMessage = 
+    Ver1 !Tag !Message
+  | Ver2 !Category !(Maybe Action) !(Maybe Entity) !(Maybe ErrorL) !(Maybe Latency) !(Maybe RespCode) !Message
+
+getFlowGuuid :: PendingMsg -> Maybe T.FlowGUID
+getFlowGuuid (V1 mbFlowGuid _ _ _ _ _)           = mbFlowGuid
+getFlowGuuid (V2 mbFlowGuid _ _ _ _ _ _ _ _ _ _) = mbFlowGuid
+
+getLogLevel :: PendingMsg -> LogLevel
+getLogLevel (V1 _ lvl _ _ _ _) = lvl
+getLogLevel (V2 _ lvl _ _ _ _ _ _ _ _ _) = lvl
+
+getLogContext :: PendingMsg -> LogContext
+getLogContext (V1 _ _ _ _ _ lContext) = lContext
+getLogContext (V2 _ _ _ _ _ _ _ _ _ _ lContext) = lContext
+
+getMessageNumber :: PendingMsg -> MessageNumber
+getMessageNumber (V1 _ _ _ _ msgNumber _) = msgNumber
+getMessageNumber (V2 _ _ _ _ _ _ _ _ _ msgNumber _) = msgNumber
+
+convertToPendingMsg :: Maybe T.FlowGUID -> LogLevel -> MessageNumber -> LogContext -> VersionLoggerMessage -> PendingMsg
+convertToPendingMsg mbFlowGuid logLevel msgNum lContext (Ver1 tag msg) =
+    V1 mbFlowGuid logLevel tag msg msgNum lContext
+convertToPendingMsg mbFlowGuid logLevel msgNum lContext (Ver2 category action entity maybeEror maybeLatency maybeRespCode msg) =
+    V2 mbFlowGuid logLevel category action entity maybeEror maybeLatency maybeRespCode msg msgNum lContext

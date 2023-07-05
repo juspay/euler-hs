@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE  ScopedTypeVariables #-}
-module EulerHS.KVConnector.InMemConfig.Types
+module EulerHS.KVConnector.InMemConfig.Types 
 
     where
 
@@ -35,11 +35,11 @@ data InMemCacheResult table where
   UnknownError :: MeshError -> InMemCacheResult table
 
 
--- data InMemCacheResult table => (Show table) = EntryValid (table) |
---                         EntryExpired (table)  KeyForInMemConfig |
+-- data InMemCacheResult table => (Show table) = EntryValid (table) | 
+--                         EntryExpired (table)  KeyForInMemConfig | 
 --                         EntryNotFound KeyForInMemConfig |
---                         TableIneligible |
---                         UnknownError MeshError
+--                         TableIneligible | 
+--                         UnknownError MeshError 
 --   deriving (Show)
 
 type KeyForInMemConfig = Text
@@ -61,9 +61,9 @@ data ImcStreamCommand = ImcInsert | ImcDelete
   deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
 
 
-data ImcStreamValue table =
+data ImcStreamValue table = 
   ImcStreamValue {
     command :: ImcStreamCommand,
-    tableRow :: table
+    tableRow :: table 
 }
   deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
