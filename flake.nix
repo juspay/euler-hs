@@ -13,19 +13,19 @@
     juspay-extra.url = "github:juspay/euler-haskell-common";
     juspay-extra.inputs.haskell-flake.follows = "common/haskell-flake";
 
-    euler-events-hs.url = "github:juspay/euler-events-hs/74ba3c12e94b37a0dc5a44c5a64d6d3da8cb0f67";
+    euler-events-hs.url = "github:juspay/euler-events-hs/main";
     euler-events-hs.inputs.haskell-flake.follows = "common/haskell-flake";
 
-    sequelize.url = "github:juspay/haskell-sequelize/beckn-compatible";
+    sequelize.url = "github:juspay/haskell-sequelize/dc01b0f9e6ba5a51dd8f9d0744a549dc9c0ba244";
     sequelize.flake = false;
 
     beam.url = "github:srid/beam/ghc810"; 
     beam.flake = false;
 
-    beam-mysql.url = "github:juspay/beam-mysql/4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace";
+    beam-mysql.url = "github:juspay/beam-mysql/b4dbc91276f6a8b5356633492f89bdac34ccd9a1";
     beam-mysql.flake = false;
 
-    mysql-haskell.url = "github:juspay/mysql-haskell/788022d65538db422b02ecc0be138b862d2e5cee"; 
+    mysql-haskell.url = "github:juspay/mysql-haskell/788022d65538db422b02ecc0be138b862d2e5cee"; # https://github.com/winterland1989/mysql-haskell/pull/38
     mysql-haskell.flake = false;
 
     hedis.url = "github:juspay/hedis/22d814672d8476a6f8fb43047af2897afbf77ac6";
@@ -80,10 +80,6 @@
             };
             sequelize.check = false;
             cereal = {
-              check = false;
-              jailbreak = true;
-            };
-            euler-events-hs = {
               check = false;
               jailbreak = true;
             };
