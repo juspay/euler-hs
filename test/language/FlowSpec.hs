@@ -87,7 +87,7 @@ spec loggerCfg = do
             rt <- initRTWithManagers
             let req = T.httpGet $ "https://localhost:" <> show port
             -- TODO use correct manager
-            resEither <- runFlow rt $ callHTTP' (Just "v1CertsSupport") req
+            resEither <- runFlow rt $ callHTTP' (Just "v1CertsSupport") req Nothing
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 404
@@ -151,7 +151,7 @@ spec loggerCfg = do
           it "validate server certificate with custom CA" $ \ _ -> do
             rt <- initRTWithManagers
             let req = T.httpGet $ "https://localhost:" <> show port
-            resEither <- runFlow rt $ callHTTP' (Just "tlsWithCustomCA") req
+            resEither <- runFlow rt $ callHTTP' (Just "tlsWithCustomCA") req Nothing
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 404
@@ -161,12 +161,12 @@ spec loggerCfg = do
           it "server rejects clients without a certificate" $ \ _ -> do
             rt <- initRTWithManagers
             let req = T.httpGet $ "https://localhost:" <> show port
-            resEither <- runFlow rt $ callHTTP' (Just "manager1") req
+            resEither <- runFlow rt $ callHTTP' (Just "manager1") req Nothing
             resEither `shouldSatisfy` isLeft
           it "authenticate client by a certificate" $ \ _ -> do
             rt <- initRTWithManagers
             let req = T.httpGet $ "https://localhost:" <> show port
-            resEither <- runFlow rt $ callHTTP' (Just "tlsWithClientCertAndCustomCA")  req
+            resEither <- runFlow rt $ callHTTP' (Just "tlsWithClientCertAndCustomCA")  req Nothing
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 404
@@ -225,7 +225,7 @@ spec loggerCfg = do
               let settings = T.withClientTls cert <> T.withCustomCA store
               mgr <- L.getHTTPManager settings
               _ <- L.getHTTPManager settings
-              L.callHTTPUsingManager mgr req
+              L.callHTTPUsingManager' mgr req Nothingjj
             resEither `shouldSatisfy` isRight
 
           it "authenticate client by an ad-hoc certificate with callAPI" $ \ rt -> do

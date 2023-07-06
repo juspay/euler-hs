@@ -20,17 +20,17 @@
     "beam-mysql": {
       "flake": false,
       "locked": {
-        "lastModified": 1604096494,
-        "narHash": "sha256-+mCbshr1YSJzLrEb+JpSQaH5EODAZ0Sm8sstztKAZq0=",
+        "lastModified": 1675165348,
+        "narHash": "sha256-sFOtfvAeFwIaMpMK8vD5usE71/jTHwDCdbf++h4jOqQ=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace",
+        "rev": "b4dbc91276f6a8b5356633492f89bdac34ccd9a1",
         "type": "github"
       },
       "original": {
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace",
+        "rev": "b4dbc91276f6a8b5356633492f89bdac34ccd9a1",
         "type": "github"
       }
     },
@@ -933,17 +933,17 @@
     "sequelize": {
       "flake": false,
       "locked": {
-        "lastModified": 1657529023,
-        "narHash": "sha256-su4fGXqcrxC1kDlomt7dqmU3HAlkcd9MYaLPyK1vXXc=",
+        "lastModified": 1688647938,
+        "narHash": "sha256-F7nixhDpXNRrpgxRH3xtnN+FkB2HS44VMrnoq1VfBnI=",
         "owner": "juspay",
         "repo": "haskell-sequelize",
-        "rev": "3abc8fe10edde3fd1c9a776ede81d057dc590341",
+        "rev": "dc01b0f9e6ba5a51dd8f9d0744a549dc9c0ba244",
         "type": "github"
       },
       "original": {
         "owner": "juspay",
-        "ref": "beckn-compatible",
         "repo": "haskell-sequelize",
+        "rev": "dc01b0f9e6ba5a51dd8f9d0744a549dc9c0ba244",
         "type": "github"
       }
     },
