@@ -13,7 +13,7 @@
     juspay-extra.url = "github:juspay/euler-haskell-common";
     juspay-extra.inputs.haskell-flake.follows = "common/haskell-flake";
 
-    euler-events-hs.url = "github:juspay/euler-events-hs/74ba3c12e94b37a0dc5a44c5a64d6d3da8cb0f67";
+    euler-events-hs.url = "github:juspay/euler-events-hs/main";
     euler-events-hs.inputs.haskell-flake.follows = "common/haskell-flake";
 
     sequelize.url = "github:juspay/haskell-sequelize/dc01b0f9e6ba5a51dd8f9d0744a549dc9c0ba244";
