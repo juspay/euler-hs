@@ -41,6 +41,10 @@
         packages.default = self'.packages.euler-hs;
         haskellProjects.default = {
           projectFlakeName = "euler-hs";
+          imports = [
+            inputs.euler-events-hs.haskellFlakeProjectModules.output
+            inputs.juspay-extra.haskellFlakeProjectModules.output
+          ];
           basePackages = config.haskellProjects.ghc810.outputs.finalPackages;
           packages = {
             beam-core.source = inputs.beam + /beam-core;
@@ -52,8 +56,6 @@
             mysql-haskell.source = inputs.mysql-haskell;
             sequelize.source = inputs.sequelize;
             cereal.source = inputs.cereal;
-            euler-events-hs.source = inputs.euler-events-hs;
-            juspay-extra.source = inputs.juspay-extra;
           };
           settings = {
             beam-core.jailbreak = true;
