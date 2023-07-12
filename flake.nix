@@ -27,8 +27,7 @@
 
     mysql-haskell.url = "github:juspay/mysql-haskell/788022d65538db422b02ecc0be138b862d2e5cee"; # https://github.com/winterland1989/mysql-haskell/pull/38
     mysql-haskell.flake = false;
-
-    hedis.url = "github:juspay/hedis/22d814672d8476a6f8fb43047af2897afbf77ac6";
+    hedis.url = "git+https://github.com/juspay/hedis?rev=92a3d5ab73dcb0ea11139a01d6f2950a8b8e7e0e";
     hedis.flake = false;
   };
   outputs = inputs@{ nixpkgs, flake-parts, ... }:
@@ -83,6 +82,10 @@
               check = false;
               jailbreak = true;
             };
+            euler-events-hs = {
+              check = false;
+              jailbreak = true;
+            };
             juspay-extra = {
               check = false;
               jailbreak = true;
@@ -104,6 +107,3 @@
       };
     };
 }
-
-
-
