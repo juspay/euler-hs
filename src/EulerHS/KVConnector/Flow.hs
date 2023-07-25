@@ -470,9 +470,12 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
     foldSkeysFunc :: HashMap Text Text -> [(Text, Text)] -> [(Text, Text, Text)]
     foldSkeysFunc _ [] = []
     foldSkeysFunc hm (x : xs) = do
-      case HM.lookup (fst x) hm of
+      -- case HM.lookup (fst x) hm of
+      --   Just val -> (fst x, snd x, val) : foldSkeysFunc hm xs
+      --   Nothing -> foldSkeysFunc hm xs
+       case HM.lookup (fst x) hm of
         Just val -> (fst x, snd x, val) : foldSkeysFunc hm xs
-        Nothing -> foldSkeysFunc hm xs
+        Nothing -> ((fst x, snd x, "") : foldSkeysFunc hm xs)
 
 
     addNewSkey :: ByteString -> Text -> (Text, Text, Text) -> m (MeshResult ())
@@ -480,7 +483,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
       let newSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v1
           oldSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v2
       res <- runExceptT $ do
-        _ <- ExceptT $ L.runKVDB meshCfg.kvRedis $ L.srem oldSKey [pKey]
+        _ <- void $ ExceptT $ L.runKVDB meshCfg.kvRedis $ L.srem oldSKey [pKey]
         _ <- ExceptT $ L.runKVDB meshCfg.kvRedis $ L.sadd newSKey [pKey]
         ExceptT $ L.runKVDB meshCfg.kvRedis $ L.expire newSKey meshCfg.redisTtl
       case res of
