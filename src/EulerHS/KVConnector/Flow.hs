@@ -462,7 +462,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
     getSortedKeyAndValue tName kvTup = do
       let sortArr = sortBy (compare `on` fst) kvTup
       let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
-      if length (filter (\(_, v) -> v=="") kvTup) > 0
+      if not $ null (filter (\(_, v) -> v=="") kvTup)
         then Nothing
         else Just $ tName <> "_" <> appendedKeys <> "_" <> appendedValues
 
