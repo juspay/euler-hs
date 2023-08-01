@@ -41,6 +41,7 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
+  , sRemB
   , rZAdd
   , rZRangeByScore
   , rZRangeByScoreWithLimit
@@ -763,6 +764,18 @@ rZRem cName k v = do
     Left err -> do
       L.logError @Text "Redis rZRem" $ show err
       pure res
+
+sRemB :: (HasCallStack, L.MonadFlow m) => RedisName -> L.KVDBKey -> [L.KVDBValue] -> m (KVDBAnswer Integer)
+sRemB redisName oldSKey pKeyList = sRemB'  
+  where 
+    sRemB' :: (HasCallStack, L.MonadFlow m) => m (KVDBAnswer Integer)
+    sRemB' = do
+      res <- L.runKVDB redisName $ L.srem oldSKey pKeyList
+      case res of
+        Right _ -> pure res
+        Left err -> do
+          L.logErrorWithCategory @Text "Redis sRemB" (show err)
+          pure res
 
 rZRemRangeByScore :: (HasCallStack, L.MonadFlow m) =>
   RedisName

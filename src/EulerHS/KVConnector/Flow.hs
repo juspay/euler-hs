@@ -70,8 +70,6 @@ createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM
   m (MeshResult ())
 createWoReturingKVConnector dbConf meshCfg value = do
   let isEnabled = meshCfg.meshEnabled && not meshCfg.kvHardKilled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if isEnabled
     then do
       mapRight (const ()) <$> createKV meshCfg value
@@ -80,11 +78,8 @@ createWoReturingKVConnector dbConf meshCfg value = do
       case res of
         Right _ -> return $ Right ()
         Left e -> return $ Left $ MDBError e
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   let source = if isEnabled then KV else SQL
       res' = mapRight (const value) res
-  logAndIncrementKVMetric True "CREATE" CREATE res' (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source Nothing
   pure res
 
 
@@ -108,8 +103,6 @@ createWithKVConnector ::
   m (MeshResult (table Identity))
 createWithKVConnector dbConf meshCfg value = do
   let isEnabled = meshCfg.meshEnabled && not meshCfg.kvHardKilled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if isEnabled
     then do
       createKV meshCfg value
@@ -122,10 +115,7 @@ createWithKVConnector dbConf meshCfg value = do
     case res of
       Right obj -> pushToInMemConfigStream meshCfg ImcInsert obj
       Left _    -> pure ()
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   let source = if isEnabled then KV else SQL
-  logAndIncrementKVMetric True "CREATE" CREATE_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source Nothing
   pure res
 
 createKV :: forall (table :: (Type -> Type) -> Type) m.
@@ -190,8 +180,6 @@ updateWoReturningWithKVConnector :: forall be table beM m.
   m (MeshResult ())
 updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   let isDisabled = meshCfg.kvHardKilled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   (source, res) <- if not isDisabled
     then do
       -- Discarding object
@@ -209,10 +197,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
               else return $ Right val
 
         Left e -> return $ Left $ MDBError e
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes   <- whereClauseDiffCheck whereClause
-  logAndIncrementKVMetric True "UPDATE" UPDATE res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
   
 
@@ -235,8 +220,6 @@ updateWithKVConnector :: forall table m.
   m (MeshResult (Maybe (table Identity)))
 updateWithKVConnector dbConf meshCfg setClause whereClause = do
   let isDisabled = meshCfg.kvHardKilled  
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   (source, res) <- if not isDisabled
     then do
       modifyOneKV dbConf meshCfg whereClause (Just setClause) False True
@@ -253,10 +236,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
           L.logError @Text "updateWithKVConnector" message
           return $ Left $ UnexpectedError message
         Left e -> return $ Left $ MDBError e
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes   <- whereClauseDiffCheck whereClause
-  logAndIncrementKVMetric True "UPDATE" UPDATE_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 modifyOneKV :: forall be table beM m.
@@ -454,47 +434,49 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
           pKey = fromString . T.unpack $ pKeyText <> shard
       let tName = tableName @(table Identity)
           updValsMap = HM.fromList (map (\p -> (fst p, True)) updVals)
-          (modifiedSkeysValues, unModifiedSkeysValues) = applyFPair (map getSortedKeyAndValue) $
-                                                span (`isKeyModified` updValsMap) olderSkeys
-          newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeysFiltered table)
-      let unModifiedSkeys = map (\x -> tName <> "_" <> fst x <> "_" <> snd x) unModifiedSkeysValues
-      let modifiedSkeysValuesMap = HM.fromList modifiedSkeysValues
+          (modifiedSkeysOld, unModifiedSkeys) = applyFPair (map (getSortedKeyAndValue tName)) $
+                                                segregateList (`isKeyModified` updValsMap) olderSkeys
+          newSkeys =  map (\(SKey s) -> s) (secondaryKeys table)
+          (modifiedSkeysNew, _) = applyFPair (map (getSortedKeyAndValue tName)) $
+                                                segregateList (`isKeyModified` updValsMap) newSkeys
       mapRight (const table) <$> runExceptT (do
-                                    mapM_ ((ExceptT . resetTTL) . (fromString . T.unpack)) unModifiedSkeys
-                                    mapM_ (ExceptT . addNewSkey pKey tName) (foldSkeysFunc modifiedSkeysValuesMap newSkeysValues))
+                                    mapM_ (ExceptT . resetTTL) unModifiedSkeys
+                                    mapM_ (ExceptT . deletePkeyFromSkey pKey) modifiedSkeysOld
+                                    mapM_ (ExceptT . addPkeyToSkey pKey) modifiedSkeysNew)
 
-    resetTTL key= do
-      x <- L.runKVDB meshCfg.kvRedis $ L.expire key meshCfg.redisTtl
+    resetTTL Nothing = pure $ Right False
+    resetTTL (Just key) = do
+      x <- L.rExpire meshCfg.kvRedis (fromString $ T.unpack key) meshCfg.redisTtl
       pure $ mapLeft MRedisError x
+    
+    deletePkeyFromSkey _ Nothing = pure $ Right 0
+    deletePkeyFromSkey pKey (Just key) = mapLeft MRedisError <$> L.sRemB meshCfg.kvRedis (fromString $ T.unpack key) [pKey]
 
-    foldSkeysFunc :: HashMap Text Text -> [(Text, Text)] -> [(Text, Text, Text)]
-    foldSkeysFunc _ [] = []
-    foldSkeysFunc hm (x : xs) = do
-      case HM.lookup (fst x) hm of
-        Just val -> (fst x, snd x, val) : foldSkeysFunc hm xs
-        Nothing -> foldSkeysFunc hm xs
+    addPkeyToSkey :: ByteString -> Maybe Text -> m (MeshResult Bool)
+    addPkeyToSkey _ Nothing = pure $ Right False
+    addPkeyToSkey pKey (Just key) = do
+      _ <- L.rSadd meshCfg.kvRedis (fromString $ T.unpack key) [pKey]
+      mapLeft MRedisError <$> L.rExpireB meshCfg.kvRedis (fromString $ T.unpack key) meshCfg.redisTtl
 
-
-    addNewSkey :: ByteString -> Text -> (Text, Text, Text) -> m (MeshResult ())
-    addNewSkey pKey tName (k, v1, v2) = do
-      let newSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v1
-          oldSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v2
-      res <- runExceptT $ do
-        _ <- ExceptT $ L.runKVDB meshCfg.kvRedis $ L.srem oldSKey [pKey]
-        _ <- ExceptT $ L.runKVDB meshCfg.kvRedis $ L.sadd newSKey [pKey]
-        ExceptT $ L.runKVDB meshCfg.kvRedis $ L.expire newSKey meshCfg.redisTtl
-      case res of
-        Right _ -> pure $ Right ()
-        Left err -> pure $ Left (MRedisError err)
-
-    getSortedKeyAndValue :: [(Text,Text)] -> (Text, Text)
-    getSortedKeyAndValue kvTup = do
+    getSortedKeyAndValue :: Text -> [(Text,Text)] -> Maybe Text
+    getSortedKeyAndValue tName kvTup = do
       let sortArr = sortBy (compare `on` fst) kvTup
       let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
-      (appendedKeys, appendedValues)
+      if not $ null (filter (\(_, v) -> v=="") kvTup)
+        then Nothing
+        else Just $ tName <> "_" <> appendedKeys <> "_" <> appendedValues
 
     isKeyModified :: [(Text, Text)] -> HM.HashMap Text Bool -> Bool
     isKeyModified sKey updValsMap = foldl' (\r k -> HM.member (fst k) updValsMap || r) False sKey
+
+    segregateList :: (a -> Bool) -> [a] -> ([a], [a])
+    segregateList func list = go list ([], [])
+      where
+        go [] res     = res 
+        go (x : xs) (trueList, falseList)
+          | func x    = go xs (x : trueList, falseList)
+          | otherwise = go xs (trueList, x : falseList)
+
 
 updateAllReturningWithKVConnector :: forall table m.
   ( HasCallStack,
@@ -514,8 +496,6 @@ updateAllReturningWithKVConnector :: forall table m.
   m (MeshResult [table Identity])
 updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   let isDisabled = meshCfg.kvHardKilled 
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
     then do
       let updVals = jsonKeyValueUpdates setClause
@@ -531,11 +511,8 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
             mapM_ (pushToInMemConfigStream meshCfg ImcInsert ) x
           return $ Right x
         Left e -> return $ Left $ MDBError e
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
   let source = if isDisabled then SQL else if (isRecachingEnabled && meshCfg.meshEnabled) then KV else KV_AND_SQL
-  logAndIncrementKVMetric True "UPDATE" UPDATE_ALL_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 updateAllWithKVConnector :: forall be table beM m.
@@ -560,8 +537,6 @@ updateAllWithKVConnector :: forall be table beM m.
   m (MeshResult ())
 updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
   let isDisabled = meshCfg.kvHardKilled  
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
     then do
       let updVals = jsonKeyValueUpdates setClause
@@ -582,11 +557,8 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
               return . Right $ ()
             Left e -> return . Left . MDBError $ e
         Left e -> return $ Left $ MDBError e
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
   let source = if isDisabled then SQL else if (isRecachingEnabled && meshCfg.meshEnabled) then KV else KV_AND_SQL
-  logAndIncrementKVMetric True "UPDATE" UPDATE_ALL res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 updateKVAndDBResults :: forall be table beM m.
@@ -680,18 +652,13 @@ findWithKVConnector :: forall be table beM m.
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
   let shouldSearchInMemoryCache = meshCfg.memcacheEnabled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   (source, res) <- if shouldSearchInMemoryCache
     then do
       inMemResult <- searchInMemoryCache meshCfg dbConf whereClause
       findOneFromDBIfNotFound inMemResult
     else
       kvFetch
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
-  logAndIncrementKVMetric False "FIND" FIND res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
   where
 
@@ -824,8 +791,6 @@ findAllWithOptionsKVConnector :: forall be table beM m.
   m (MeshResult [table Identity])
 findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffset = do
   let isDisabled = meshCfg.kvHardKilled  
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
     then do
       kvRes <- redisFindAll meshCfg whereClause
@@ -862,11 +827,8 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
             ! #offset mbOffset
             ! defaults)
       mapLeft MDBError <$> runQuery dbConf findAllQuery
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
   let source = if not isDisabled then KV_AND_SQL else SQL
-  logAndIncrementKVMetric False "FIND" FIND_ALL_WITH_OPTIONS res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
     where
@@ -908,8 +870,6 @@ findAllWithKVConnector :: forall be table beM m.
 findAllWithKVConnector dbConf meshCfg whereClause = do
   let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
   let isDisabled = meshCfg.kvHardKilled  
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
     then do
       kvRes <- redisFindAll meshCfg whereClause
@@ -922,11 +882,8 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
         Left err -> return $ Left err  
     else do
       mapLeft MDBError <$> runQuery dbConf findAllQuery
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
   let source = if not isDisabled then KV_AND_SQL else SQL
-  logAndIncrementKVMetric False "FIND" FIND_ALL res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 redisFindAll :: forall be table beM m.
@@ -1042,8 +999,6 @@ deleteWithKVConnector :: forall be table beM m.
   m (MeshResult ())
 deleteWithKVConnector dbConf meshCfg whereClause = do
   let isDisabled = meshCfg.kvHardKilled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   (source, res) <- if not isDisabled
     then do
       (\delRes -> (fst delRes, mapRight (const ()) (snd delRes))) <$> modifyOneKV dbConf meshCfg whereClause Nothing True False
@@ -1063,10 +1018,7 @@ deleteWithKVConnector dbConf meshCfg whereClause = do
             else do
                 return $ Right re
 
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
-  logAndIncrementKVMetric False "DELETE" DELETE_ONE res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 deleteReturningWithKVConnector :: forall be table beM m.
@@ -1088,8 +1040,6 @@ deleteReturningWithKVConnector :: forall be table beM m.
   m (MeshResult (Maybe (table Identity)))
 deleteReturningWithKVConnector dbConf meshCfg whereClause = do
   let isDisabled = meshCfg.kvHardKilled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   (source, res) <- if not isDisabled
     then do
       modifyOneKV dbConf meshCfg whereClause Nothing False False
@@ -1104,10 +1054,7 @@ deleteReturningWithKVConnector dbConf meshCfg whereClause = do
         Right rs   -> do
           when meshCfg.memcacheEnabled $ mapM_ (pushToInMemConfigStream meshCfg ImcDelete) rs
           return $ Left $ MUpdateFailed "SQL delete returned more than one record"
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
-  logAndIncrementKVMetric False "DELETE" DELETE_ONE_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 deleteAllReturningWithKVConnector :: forall be table beM m.
@@ -1129,8 +1076,6 @@ deleteAllReturningWithKVConnector :: forall be table beM m.
   m (MeshResult [table Identity])
 deleteAllReturningWithKVConnector dbConf meshCfg whereClause = do
   let isDisabled = meshCfg.kvHardKilled
-  t1        <- getCurrentDateInMillis
-  cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
     then do
       kvResult <- redisFindAll meshCfg whereClause
@@ -1143,9 +1088,6 @@ deleteAllReturningWithKVConnector dbConf meshCfg whereClause = do
         Right re -> do
           when meshCfg.memcacheEnabled $ mapM_ (pushToInMemConfigStream meshCfg ImcDelete) re
           return $ Right re
-  t2        <- getCurrentDateInMillis
-  cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
   let source = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
-  logAndIncrementKVMetric False "DELETE" DELETE_ALL_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res

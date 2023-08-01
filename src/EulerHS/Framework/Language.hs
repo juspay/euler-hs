@@ -69,6 +69,7 @@ module EulerHS.Framework.Language
   , isDBMetricEnabled
   , DBMetricCfg (..)
   , incrementDbMetric
+  , logErrorWithCategory
   ) where
 
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
@@ -99,7 +100,7 @@ import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
 import qualified EulerHS.KVDB.Types as T
 import           EulerHS.Logger.Language (Logger, masterLogger)
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
-                                       Message (Message), ExceptionEntry(..))
+                                       Message (Message), ExceptionEntry(..), ErrorL(..))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import qualified EulerHS.PubSub.Language as PSL
@@ -1722,6 +1723,10 @@ logDebugM = logM Debug
 logDebug :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag) => tag -> Text -> m ()
 logDebug = log Debug
+
+logErrorWithCategory :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag) => tag -> Text -> m ()
+logErrorWithCategory t v = log Error t v
 
 logDebugV :: forall (tag :: Type) (m :: Type -> Type) val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
