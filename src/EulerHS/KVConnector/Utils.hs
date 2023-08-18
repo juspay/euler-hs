@@ -227,6 +227,11 @@ mergeKVAndDBResults dbRows kvRows = do
       uniqueDbRes = filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows
   kvRows ++ uniqueDbRes
 
+getUniqueDBRes :: KVConnector (table Identity) => [table Identity] -> [table Identity] -> [table Identity]
+getUniqueDBRes dbRows kvRows = do
+  let kvPkeys = map getLookupKeyByPKey kvRows
+  filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows
+
 removeDeleteResults :: KVConnector (table Identity) => [table Identity] -> [table Identity] -> [table Identity]
 removeDeleteResults delRows rows = do
   let delPKeys = map getLookupKeyByPKey delRows

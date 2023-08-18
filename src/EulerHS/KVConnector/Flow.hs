@@ -583,34 +583,34 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows mbUpdateVals 
     (Right allDBRows, Right allKVRows) -> do
       let kvLiveRows = fst allKVRows
           kvDeadRows = snd allKVRows
-          dbRows = removeDeleteResults kvDeadRows allDBRows
+          kvLiveAndDeadRows = kvLiveRows ++ kvDeadRows
+          matchedKVLiveRows = findAllMatching whereClause kvLiveRows
       if isRecachingEnabled && meshCfg.meshEnabled
         then do
-          let kvPkeys = map getLookupKeyByPKey kvLiveRows
-              uniqueDbRes = filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows
-          reCacheDBRowsRes <- reCacheDBRows meshCfg uniqueDbRes
+          let uniqueDbRows =  getUniqueDBRes allDBRows kvLiveAndDeadRows
+          reCacheDBRowsRes <- reCacheDBRows meshCfg uniqueDbRows
           case reCacheDBRowsRes of
             Left err -> return $ Left $ MRedisError err
             Right _  -> do
-              let allRows = kvLiveRows ++ uniqueDbRes
+              let allRows = matchedKVLiveRows ++ uniqueDbRows
               sequence <$> if isLive
                   then mapM (updateObjectRedis meshCfg updVals True whereClause) allRows
                   else mapM (deleteObjectRedis meshCfg True whereClause) allRows
         else do
           updateOrDelKVRowRes <- if isLive
-            then mapM (updateObjectRedis meshCfg updVals True whereClause) kvLiveRows
-            else mapM (deleteObjectRedis meshCfg True whereClause) kvLiveRows
+            then mapM (updateObjectRedis meshCfg updVals True whereClause) matchedKVLiveRows
+            else mapM (deleteObjectRedis meshCfg True whereClause) matchedKVLiveRows
           kvres <- pure $ foldEither updateOrDelKVRowRes
           case kvres of 
             Left err -> return $ Left err
-            Right kvRes -> runUpdateOrDelete setClause kvRes
+            Right kvRes -> runUpdateOrDelete setClause kvRes kvLiveAndDeadRows
           
     (Left err, _) -> pure $ Left (MDBError err)
     (_, Left err) -> pure $ Left err
           
 
     where
-      runUpdateOrDelete setClause kvres = do
+      runUpdateOrDelete setClause kvres kvLiveAndDeadRows = do
         case (isLive, updateWoReturning) of
           (True, True) -> do
             let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
@@ -622,12 +622,12 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows mbUpdateVals 
             let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
             res <- runQuery dbConf updateQuery
             case res of
-                Right x -> return $ Right $ (mergeKVAndDBResults x . findAllMatching whereClause) kvres
+                Right x -> return $ Right $ (getUniqueDBRes x kvLiveAndDeadRows) ++ kvres
                 Left e  -> return $ Left $ MDBError e
           (False, _) -> do
             res <- deleteAllReturning dbConf whereClause
             case res of
-                Right x -> return $ Right $ (mergeKVAndDBResults x . findAllMatching whereClause) kvres
+                Right x -> return $ Right $ (getUniqueDBRes x kvLiveAndDeadRows) ++ kvres
                 Left e  -> return $ Left $ MDBError e
 
 
@@ -875,9 +875,10 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
       kvRes <- redisFindAll meshCfg whereClause
       case kvRes of
         Right kvRows -> do
+          let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
           dbRes <- runQuery dbConf findAllQuery
           case dbRes of
-            Right dbRows -> pure $ Right $ mergeKVAndDBResults (removeDeleteResults (snd kvRows) dbRows) (fst kvRows)
+            Right dbRows -> pure $ Right $ matchedKVLiveRows ++ (getUniqueDBRes dbRows (fst kvRows ++ snd kvRows))
             Left err     -> return $ Left $ MDBError err
         Left err -> return $ Left err  
     else do
@@ -911,7 +912,7 @@ redisFindAll meshCfg whereClause = do
       case allRowsRes of
         Right allRowsResPairList -> do
           let (allRowsResLiveListOfList, allRowsResDeadListOfList) = unzip allRowsResPairList
-          return $ Right (findAllMatching whereClause $ concat allRowsResLiveListOfList, findAllMatching whereClause $ concat allRowsResDeadListOfList)
+          return $ Right (concat allRowsResLiveListOfList, concat allRowsResDeadListOfList)
         Left err -> return $ Left err
     Left err -> pure $ Left err
 
