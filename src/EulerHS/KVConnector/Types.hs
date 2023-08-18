@@ -10,7 +10,11 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module EulerHS.KVConnector.Types where
+module EulerHS.KVConnector.Types 
+  (
+    module EulerHS.KVConnector.Types,
+    MeshError(..)
+  ) where
 
 import EulerHS.Prelude
 import qualified Data.Aeson as A
