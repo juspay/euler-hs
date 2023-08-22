@@ -1,3 +1,14 @@
+{- |
+Module      :  EulerHS.Core.Logger.Impl.TinyLogger
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains implementation of TinyLogger
+-}
+
 module EulerHS.Core.Logger.Impl.TinyLogger
   (
     -- * TinyLogger Implementation

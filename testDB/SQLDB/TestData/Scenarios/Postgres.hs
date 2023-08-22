@@ -1,17 +1,14 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module SQLDB.TestData.Scenarios.Postgres where
-
-import           EulerHS.Prelude
-
-import qualified EulerHS.Language as L
-import qualified EulerHS.Types as T
-
-import           SQLDB.TestData.Connections (connectOrFail)
-import           SQLDB.TestData.Types
 
 import           Database.Beam ((<-.), (==.))
 import qualified Database.Beam as B
 import qualified Database.Beam.Postgres as BP
-
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
+import qualified EulerHS.Types as T
+import           SQLDB.TestData.Types
 
 -- Scenarios
 
@@ -20,7 +17,7 @@ uniqueConstraintViolationDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      L.runDB conn
+      _ <- L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertValues [User 2 "Eve" "Beon"]
@@ -50,7 +47,7 @@ selectOneDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      L.runDB conn
+      _ <- L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertExpressions (mkUser <$> susers)

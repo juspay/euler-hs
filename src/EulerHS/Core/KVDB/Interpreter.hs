@@ -1,3 +1,16 @@
+{- |
+Module      :  EulerHS.Core.KVDB.Interpreter
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains interpreter for KVDB language and used in KVDB runtime
+Also this is to interpret the KVDB language and convert it to
+redis commands and execute them
+-}
+
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module EulerHS.Core.KVDB.Interpreter
   (
@@ -140,8 +153,6 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
     makeStreamEntryId L.AutoID = "*"
 
     parseStreamEntryId bs =
-      -- "number-number" is redis entry id invariant
-      -- TODO:
       let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
       in L.KVDBStreamEntryID ms sq
 

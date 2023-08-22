@@ -1,22 +1,20 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module SQLDB.Tests.PostgresDBSpec where
 
+import           Database.Beam.Postgres (Pg)
+import           EulerHS.Extra.Test (preparePostgresDB)
+import           EulerHS.Interpreters (runFlow)
+import           EulerHS.Language ()
 import           EulerHS.Prelude
-
-import           EulerHS.Interpreters
 import           EulerHS.Runtime (withFlowRuntime)
-import           EulerHS.Types hiding (error)
 import qualified EulerHS.Types as T
-
-import           SQLDB.TestData.Connections (connectOrFail)
-import           SQLDB.TestData.Scenarios.Postgres
-import           SQLDB.TestData.Types
-
-import qualified Database.Beam.Postgres as BP
-import           Database.PostgreSQL.Simple (execute_)
-import           EulerHS.Extra.Test
-import           EulerHS.Language
-import           EulerHS.Runtime (FlowRuntime, withFlowRuntime)
-import           System.Process
+import           SQLDB.TestData.Scenarios.Postgres (selectOneDbScript,
+                                                    selectUnknownDbScript,
+                                                    uniqueConstraintViolationDbScript,
+                                                    updateAndSelectDbScript)
+import           SQLDB.TestData.Types (someUser)
+import           System.Process ()
 import           Test.Hspec hiding (runIO)
 
 -- Configurations
@@ -30,7 +28,6 @@ pgCfg = T.PostgresConfig
   , connectDatabase = "euler_test_db" --  String
   }
 
-
 pgRootCfg :: T.PostgresConfig
 pgRootCfg =
     T.PostgresConfig
@@ -42,31 +39,34 @@ pgRootCfg =
   where
     T.PostgresConfig {..} = pgCfg
 
-mkPgCfg = mkPostgresConfig "eulerPGDB"
+mkPgCfg :: T.PostgresConfig -> T.DBConfig Pg
+mkPgCfg = T.mkPostgresConfig "eulerPGDB"
 
+poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
   , resourcesPerStripe = 50
   }
 
-mkPgPoolCfg cfg = mkPostgresPoolConfig "eulerPGDB" cfg poolConfig
+mkPgPoolCfg :: T.PostgresConfig -> T.DBConfig Pg
+mkPgPoolCfg cfg = T.mkPostgresPoolConfig "eulerPGDB" cfg poolConfig
 
 -- Tests
 
 spec :: Spec
 spec = do
     let
-        test pgCfg = do
+        test pgCfg' = do
           it "Unique Constraint Violation" $ \rt -> do
-            eRes <- runFlow rt $ uniqueConstraintViolationDbScript pgCfg
+            eRes <- runFlow rt $ uniqueConstraintViolationDbScript pgCfg'
 
             eRes `shouldBe`
-              ( Left $ DBError
-                  ( SQLError $ PostgresError $
-                      PostgresSqlError
+              Left (T.DBError
+                  ( T.SQLError $ T.PostgresError $
+                      T.PostgresSqlError
                         { sqlState = "23505"
-                        , sqlExecStatus = PostgresFatalError
+                        , sqlExecStatus = T.PostgresFatalError
                         , sqlErrorMsg = "duplicate key value violates unique constraint \"users_pkey\""
                         , sqlErrorDetail = "Key (id)=(2) already exists."
                         , sqlErrorHint = ""
@@ -76,16 +76,16 @@ spec = do
               )
 
           it "Select one, row not found" $ \rt -> do
-            eRes <- runFlow rt $ selectUnknownDbScript pgCfg
-            eRes `shouldBe` (Right Nothing)
+            eRes <- runFlow rt $ selectUnknownDbScript pgCfg'
+            eRes `shouldBe` Right Nothing
 
           it "Select one, row found" $ \rt -> do
-            eRes <- runFlow rt $ selectOneDbScript pgCfg
-            eRes `shouldSatisfy` (someUser "John" "Doe")
+            eRes <- runFlow rt $ selectOneDbScript pgCfg'
+            eRes `shouldSatisfy` someUser "John" "Doe"
 
           it "Update / Select, row found & changed" $ \rt -> do
-            eRes <- runFlow rt $ updateAndSelectDbScript pgCfg
-            eRes `shouldSatisfy` (someUser "Leo" "San")
+            eRes <- runFlow rt $ updateAndSelectDbScript pgCfg'
+            eRes `shouldSatisfy` someUser "Leo" "San"
 
     let prepare pgCfgToDbCfg =
           preparePostgresDB

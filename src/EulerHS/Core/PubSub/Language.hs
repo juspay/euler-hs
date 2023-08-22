@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
-
 {- |
 Module      :  EulerHS.Core.PubSub.Language
 Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
@@ -13,6 +11,8 @@ Experimental PubSub subsystem (Redis-based)
 This module is internal and should not imported in the projects.
 Import 'EulerHS.Language' instead.
 -}
+
+{-# LANGUAGE DeriveFunctor #-}
 
 module EulerHS.Core.PubSub.Language where
 

@@ -45,7 +45,7 @@ import           EulerHS.Core.Types.DB as X (withTransaction)
 import qualified System.Logger as Log
 
 
--- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
+
 data LoggerRuntime
   = LoggerRuntime
     { _flowFormatter    :: T.FlowFormatter
@@ -62,12 +62,6 @@ data CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
     }
 
--- createLoggerRuntime :: LoggerConfig -> IO LoggerRuntime
--- createLoggerRuntime (MemoryLoggerConfig cfgLogLevel) =
---   MemoryLoggerRuntime cfgLogLevel <$> newMVar []
--- createLoggerRuntime cfg = do
---   counter <- initLogCounter
---   LoggerRuntime (_level cfg) (_logRawSql cfg) counter Nothing Nothing (_logMaskingConfig cfg)<$> Impl.createLogger cfg
 
 createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
 createMemoryLoggerRuntime flowFormatter logLevel =
