@@ -1,19 +1,24 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE RankNTypes      #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
+
+ 
 module EulerHS.Extra.Test where
-
-import           EulerHS.Prelude
 
 import qualified Database.Beam.Postgres as BP
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PG (execute_)
 import           EulerHS.Interpreters
 import           EulerHS.Language
+import           EulerHS.Prelude
 import           EulerHS.Runtime (FlowRuntime)
 import           EulerHS.Types
 import qualified EulerHS.Types as T
 import           System.Process
-
 
 mwhen :: Monoid m => Bool -> m -> m
 mwhen True  = id
@@ -24,7 +29,7 @@ withMysqlDb :: String -> String -> MySQLConfig -> IO a -> IO a
 withMysqlDb dbName filePath msRootCfg next =
     bracket_
       (dropTestDbIfExist >> createTestDb)
-      (dropTestDbIfExist)
+      dropTestDbIfExist
       (loadMySQLDump >> next)
   where
     T.MySQLConfig
@@ -82,7 +87,7 @@ preparePostgresDB filePath pgRootCfg pgCfg@T.PostgresConfig{..} pgCfgToDbCfg wit
 
         bracket_
           (dropTestDbIfExist >> createTestDb)
-          (dropTestDbIfExist)
+          dropTestDbIfExist
           (loadPgDump >> prepareDBConnections flowRt >> next flowRt)
   where
     prepareDBConnections :: FlowRuntime -> IO ()
