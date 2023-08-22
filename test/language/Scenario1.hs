@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -fno-warn-deprecations -Werror #-}
 
-module EulerHS.TestData.Scenarios.Scenario1
+module Scenario1
   (
     mkUrl, testScenario1
   ) where
 
-import           EulerHS.TestData.API.Client (User (User), getUser, port, userGUID)
+import           Client (User (User), getUser, port, userGUID)
 import           Data.Text (pack)
 import           EulerHS.Language
 import           EulerHS.Prelude hiding (getOption, pack)
@@ -21,7 +21,7 @@ testScenario1 = do
   localGUID <- runIO (undefined :: IO Text)
   guid <- generateGUID
   url <- maybe (mkUrl "localhost") mkUrl <$> getOption UrlKey
-  res <- callServantAPI Nothing url getUser
+  res <- callServantAPI Nothing url ("TESTING" :: Text) (const Nothing) getUser
   case res of
     Right u ->  if localGUID /= userGUID u then pure u
                      else pure $ User localUserName "" guid

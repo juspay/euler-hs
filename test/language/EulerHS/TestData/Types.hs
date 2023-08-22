@@ -1,15 +1,14 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.TestData.Types where
 
 import qualified Data.Aeson as A
 import           EulerHS.Prelude
-import           EulerHS.Types
-
+import           EulerHS.Types (OptionEntity)
 
 data UrlKey = UrlKey
   deriving (Generic, Typeable, Show, Eq, ToJSON)
-
 
 data TestStringKey = TestStringKey
   deriving (Generic, Typeable, Show, Eq, ToJSON)
@@ -17,13 +16,11 @@ data TestStringKey = TestStringKey
 data TestStringKey2 = TestStringKey2
   deriving (Generic, Typeable, Show, Eq, ToJSON)
 
-
 data TestIntKey = TestIntKey
   deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 data TestIntKey2 = TestIntKey2
   deriving (Generic, Typeable, Show, Eq, ToJSON)
-
 
 data TestStringKeyAnotherEnc = TestStringKeyAnotherEnc
   deriving (Generic, Typeable, Show, Eq)
@@ -31,36 +28,37 @@ data TestStringKeyAnotherEnc = TestStringKeyAnotherEnc
 data TestStringKey2AnotherEnc = TestStringKey2AnotherEnc
   deriving (Generic, Typeable, Show, Eq)
 
+newtype TestKeyWithStringPayload = TestKeyWithStringPayload String
+  deriving stock (Generic, Typeable, Show)
+  deriving newtype (Eq)
+  deriving anyclass (ToJSON)
 
-data TestKeyWithStringPayload = TestKeyWithStringPayload String
-  deriving (Generic, Typeable, Show, Eq, ToJSON)
+newtype TestKeyWithIntPayload = TestKeyWithIntPayload Int
+  deriving stock (Generic, Typeable, Show)
+  deriving newtype (Eq)
+  deriving anyclass (ToJSON)
 
-data TestKeyWithIntPayload = TestKeyWithIntPayload Int
-  deriving (Generic, Typeable, Show, Eq, ToJSON)
-
-
-data TestKeyWithStringPayloadAnotherEnc = TestKeyWithStringPayloadAnotherEnc String
+newtype TestKeyWithStringPayloadAnotherEnc = TestKeyWithStringPayloadAnotherEnc String
   deriving (Generic, Typeable, Show, Eq)
 
-data TestKeyWithIntPayloadAnotherEnc = TestKeyWithIntPayloadAnotherEnc Int
+newtype TestKeyWithIntPayloadAnotherEnc = TestKeyWithIntPayloadAnotherEnc Int
   deriving (Generic, Typeable, Show, Eq)
-
-
 
 newtype NTTestKeyWithStringPayload = NTTestKeyWithStringPayload String
-  deriving (Generic, Typeable, Show, Eq, ToJSON)
+  deriving stock (Generic, Typeable, Show)
+  deriving newtype (Eq)
+  deriving anyclass (ToJSON)
 
 newtype NTTestKeyWithIntPayload = NTTestKeyWithIntPayload Int
-  deriving (Generic, Typeable, Show, Eq, ToJSON)
-
+  deriving stock (Generic, Typeable, Show)
+  deriving newtype (Eq)
+  deriving anyclass (ToJSON)
 
 newtype NTTestKeyWithStringPayloadAnotherEnc = NTTestKeyWithStringPayloadAnotherEnc String
   deriving (Generic, Typeable, Show, Eq)
 
 newtype NTTestKeyWithIntPayloadAnotherEnc = NTTestKeyWithIntPayloadAnotherEnc Int
   deriving (Generic, Typeable, Show, Eq)
-
-
 
 instance A.ToJSON TestStringKeyAnotherEnc
   where toJSON = A.genericToJSON $ A.defaultOptions { A.tagSingleConstructors = True }
@@ -75,7 +73,6 @@ instance A.ToJSON TestKeyWithStringPayloadAnotherEnc
 instance A.ToJSON TestKeyWithIntPayloadAnotherEnc
   where toJSON = A.genericToJSON $ A.defaultOptions { A.tagSingleConstructors = True }
 
-
 instance A.ToJSON NTTestKeyWithStringPayloadAnotherEnc
   where toJSON = A.genericToJSON $ A.defaultOptions { A.tagSingleConstructors = True }
 
@@ -87,23 +84,16 @@ instance OptionEntity TestStringKey String
 instance OptionEntity TestStringKey2 String
 instance OptionEntity TestIntKey Int
 instance OptionEntity TestIntKey2 Int
-
 instance OptionEntity TestStringKeyAnotherEnc String
 instance OptionEntity TestStringKey2AnotherEnc String
-
 instance OptionEntity TestKeyWithStringPayload String
 instance OptionEntity TestKeyWithIntPayload String
-
 instance OptionEntity TestKeyWithStringPayloadAnotherEnc String
 instance OptionEntity TestKeyWithIntPayloadAnotherEnc String
-
 instance OptionEntity NTTestKeyWithStringPayload String
 instance OptionEntity NTTestKeyWithIntPayload Int
-
 instance OptionEntity NTTestKeyWithStringPayloadAnotherEnc String
 instance OptionEntity NTTestKeyWithIntPayloadAnotherEnc Int
-
-
 
 data TestKVals = TestKVals
   { mbTestStringKey                          :: Maybe String
@@ -130,8 +120,3 @@ data TestKVals = TestKVals
   , mbNTTestKeyWithIntPayloadAnotherEncS2    :: Maybe Int
   }
   deriving (Show, Eq)
-
-----------------------------------
-
-
-

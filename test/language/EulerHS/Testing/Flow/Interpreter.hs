@@ -1,6 +1,6 @@
-{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE AllowAmbiguousTypes       #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 
 module EulerHS.Testing.Flow.Interpreter where
 
@@ -20,9 +20,9 @@ runFlowWithTestInterpreter mv flowRt = foldFlow (interpretFlowMethod mv flowRt)
 interpretFlowMethod :: FlowMockedValues -> FlowRuntime -> FlowMethod a -> IO a
 interpretFlowMethod mmv _ = \case
   L.RunIO _ _ next -> next . unsafeCoerce <$> takeMockedVal @"mockedRunIO" mmv
-  L.CallServantAPI _ _ _ next ->
+  L.CallServantAPI _ _ _ _ _ next ->
     next . unsafeCoerce <$> takeMockedVal @"mockedCallServantAPI" mmv
-  L.GetOption _ next -> next <$> (unsafeCoerce $ Just $ takeMockedVal @"mockedGetOption" mmv)
+  L.GetOption _ next -> next <$> unsafeCoerce (Just $ takeMockedVal @"mockedGetOption" mmv)
   L.SetOption _ _ next -> pure . next $ ()
   L.GenerateGUID next -> next <$> takeMockedVal @"mockedGenerateGUID" mmv
   L.RunSysCmd _ next -> next <$> takeMockedVal @"mockedRunSysCmd" mmv

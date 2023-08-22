@@ -1,27 +1,24 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Tests.Framework.CachedDBSpec where
+module CachedDBSpec where
 
-import           EulerHS.Tests.Framework.DBSetup
-import           EulerHS.Tests.Framework.DBSetup as DBS
+import           DBSetup as DBS
 import qualified Database.Beam as B
 import           EulerHS.CachedSqlDBQuery
 import           EulerHS.Interpreters as I
 import           EulerHS.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Types as T
--- import           Named
 import           Sequelize
 import           Test.Hspec
+import           EulerHS.KVConnector.Types (meshConfig)
 
-
+redisCfg :: KVDBConfig
 redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
 
 spec :: Spec
 spec = do
-  around (withEmptyDB) $
+  around withEmptyDB $
 
     describe "Cached sequelize layer" $ do
 
@@ -37,7 +34,7 @@ spec = do
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          L.runDB conn $ L.insertRows $
+          _ <- L.runDB conn $ L.insertRows $
             B.insert (users userDB) $ B.insertValues [User 1 "Bill" "Gates"]
           findOne sqliteCfg (Just testKey) []
         res `shouldBe` Right (Just (User 1 "Bill" "Gates"))
@@ -60,12 +57,12 @@ spec = do
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          L.runDB conn $ L.insertRows $
+          _ <- L.runDB conn $ L.insertRows $
             B.insert (users userDB) $ B.insertValues [User 1 "Bill" "Gates"]
           _ <- findOne sqliteCfg (Just testKey) []
                 :: Flow (Either DBError (Maybe User))
           -- Delete value to ensure the cache is used
-          L.runDB conn $ L.deleteRows $
+          _ <- L.runDB conn $ L.deleteRows $
             B.delete (users userDB) (\u -> _userGUID u B.==. 1)
           findOne sqliteCfg (Just testKey) []
         res `shouldBe` Right (Just (User 1 "Bill" "Gates"))
@@ -73,11 +70,11 @@ spec = do
       it "findAll finds all values in the database" $ \rt -> do
         let testKey = "key5"
         res <- runFlow rt $ do
-          redisConn <- L.initKVDBConnection redisCfg
+          _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          L.runDB conn $ L.insertRows $
+          _ <- L.runDB conn $ L.insertRows $
             B.insert (users userDB) $ B.insertValues [User 1 "Bill" "Gates"]
-          L.runDB conn $ L.insertRows $
+          _ <- L.runDB conn $ L.insertRows $
             B.insert (users userDB) $ B.insertValues [User 2 "Steve" "Jobs"]
           _ <- findAll sqliteCfg (Just testKey) []
                 :: Flow (Either DBError [User])
@@ -104,14 +101,14 @@ spec = do
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          L.runDB conn $ L.insertRows $
+          _ <- L.runDB conn $ L.insertRows $
             B.insert (users userDB) $ B.insertValues [User 1 "Bill" "Gates"]
-          L.runDB conn $ L.insertRows $
+          _ <- L.runDB conn $ L.insertRows $
             B.insert (users userDB) $ B.insertValues [User 2 "Steve" "Jobs"]
-          something <- findAll sqliteCfg (Just testKey) []
+          _ <- findAll sqliteCfg (Just testKey) []
                 :: Flow (Either DBError [User])
           -- Delete everything to ensure the cache is used
-          L.runDB conn $ L.deleteRows $
+          _ <- L.runDB conn $ L.deleteRows $
             B.delete (users userDB) (\u -> _userGUID u B.<. 3)
           findAll sqliteCfg (Just testKey) []
         res `shouldSatisfy` \case
@@ -123,7 +120,7 @@ spec = do
         let user = User 10 "Alonzo" "Church"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
-          create sqliteCfg user Nothing
+          _ <- create sqliteCfg meshConfig user Nothing
           findOne sqliteCfg Nothing []
         res `shouldBe` Right (Just user)
 
@@ -133,34 +130,32 @@ spec = do
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          create sqliteCfg user (Just testKey)
+          _ <- create sqliteCfg meshConfig user (Just testKey)
           -- Delete from DB to ensure the cache is used
-          L.runDB conn $ L.deleteRows $
+          _ <- L.runDB conn $ L.deleteRows $
             B.delete (users userDB) (\u -> _userGUID u B.==. 10)
           findOne sqliteCfg (Just testKey) []
         res `shouldBe` Right (Just user)
 
       it "updateOne updates the DB" $ \rt -> do
         let user1 :: User = User 10 "Alan" "Turing"
-        let user2 :: User = User 11 "Kurt" "Goedel"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
-          create sqliteCfg user1 Nothing
-          updateOne sqliteCfg Nothing [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
+          _ <- create sqliteCfg meshConfig user1 Nothing
+          _ <- updateOne sqliteCfg Nothing [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
           findOne sqliteCfg Nothing []
         res `shouldBe` Right (Just user1 {DBS._firstName = "Kurt"})
 
       it "updateOne updates the cache" $ \rt -> do
         let user1 :: User = User 10 "Alan" "Turing"
-        let user2 :: User = User 11 "Kurt" "Goedel"
         let testKey = "key9"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          create sqliteCfg user1 (Just testKey)
-          updateOne sqliteCfg (Just testKey) [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
+          _ <- create sqliteCfg meshConfig user1 (Just testKey)
+          _ <- updateOne sqliteCfg (Just testKey) [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
           -- Delete from DB to ensure the cache is used
-          L.runDB conn $ L.deleteRows $
+          _ <- L.runDB conn $ L.deleteRows $
             B.delete (users userDB) (\u -> _userGUID u B.==. 10)
           findOne sqliteCfg (Just testKey) []
         res `shouldBe` Right (Just user1 {DBS._firstName = "Kurt"})

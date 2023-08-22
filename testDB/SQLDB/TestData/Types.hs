@@ -1,13 +1,14 @@
+{-# OPTIONS_GHC -fclear-plugins #-}
 {-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module SQLDB.TestData.Types where
 
+import qualified Database.Beam as B
+import           Database.Beam.Backend.SQL (BeamSqlBackend)
 import           EulerHS.Prelude
 import qualified EulerHS.Types as T
-
-
-import qualified Database.Beam as B
 
 -- sqlite3 db
 -- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
@@ -24,7 +25,6 @@ instance B.Table UserT where
 
 type User = UserT Identity
 
-
 type UserId = B.PrimaryKey UserT Identity
 
 deriving instance Show User
@@ -32,9 +32,10 @@ deriving instance Eq User
 deriving instance ToJSON User
 deriving instance FromJSON User
 
-data EulerDb f = EulerDb
+newtype EulerDb f = EulerDb
     { _users :: f (B.TableEntity UserT)
-    } deriving (Generic, B.Database be)
+    } deriving stock (Generic)
+      deriving anyclass (B.Database be)
 
 eulerDb :: B.DatabaseSettings be EulerDb
 eulerDb = B.defaultDbSettings
@@ -53,13 +54,13 @@ instance B.Table SqliteSequenceT where
 type SqliteSequence = SqliteSequenceT Identity
 type SqliteSequenceId = B.PrimaryKey SqliteSequenceT Identity
 
-data SqliteSequenceDb f = SqliteSequenceDb
+newtype SqliteSequenceDb f = SqliteSequenceDb
     { _sqlite_sequence :: f (B.TableEntity SqliteSequenceT)
-    } deriving (Generic, B.Database be)
+    } deriving stock (Generic)
+      deriving anyclass (B.Database be)
 
 sqliteSequenceDb :: B.DatabaseSettings be SqliteSequenceDb
 sqliteSequenceDb = B.defaultDbSettings
-
 
 data SimpleUser = SimpleUser {first :: Text, last :: Text}
 
@@ -69,8 +70,14 @@ susers =
   , SimpleUser  "Doe" "John"
   ]
 
-mkUser SimpleUser {..} = User B.default_ (B.val_ first) (B.val_ last)
-
+mkUser ::
+  (BeamSqlBackend be,
+    B.SqlValable (B.Columnar f Text),
+    B.Columnar f Int ~ B.QGenExpr ctxt be s a,
+    B.HaskellLiteralForQExpr (B.Columnar f Text) ~ Text) =>
+    SimpleUser ->
+    UserT f
+mkUser (SimpleUser first' last') = User B.default_ (B.val_ first') (B.val_ last')
 
 someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
 someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l

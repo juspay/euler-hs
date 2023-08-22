@@ -1,17 +1,15 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module SQLDB.TestData.Scenarios.SQLite where
-
-import           EulerHS.Prelude
-
-import qualified EulerHS.Language as L
-import qualified EulerHS.Types as T
-
-import           SQLDB.TestData.Connections
-import           SQLDB.TestData.Types
 
 import           Database.Beam ((/=.), (<-.), (==.))
 import qualified Database.Beam as B
 import qualified Database.Beam.Sqlite as BS
-
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
+import qualified EulerHS.Types as T
+import           SQLDB.TestData.Connections
+import           SQLDB.TestData.Types
 
 -- Scenarios
 
@@ -24,8 +22,8 @@ deleteTestValues cfg = do
   void $ L.runDB conn
     $ L.updateRows
     $ B.update (_sqlite_sequence sqliteSequenceDb)
-          (\(SqliteSequence {..}) -> mconcat [_seq <-. B.val_ 0])
-          (\(SqliteSequence {..}) -> _name ==. B.val_ "users")
+          (\SqliteSequence {..} -> mconcat [_seq <-. B.val_ 0])
+          (\SqliteSequence {..} -> _name ==. B.val_ "users")
 
 insertTestValues :: T.DBConfig BS.SqliteM -> L.Flow ()
 insertTestValues cfg = do
@@ -47,7 +45,7 @@ uniqueConstraintViolationDbScript :: T.DBConfig BS.SqliteM -> L.Flow (T.DBResult
 uniqueConstraintViolationDbScript cfg = do
   connection <- connectOrFail cfg
 
-  L.runDB connection
+  _ <- L.runDB connection
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]

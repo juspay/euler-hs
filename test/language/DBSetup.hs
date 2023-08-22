@@ -1,19 +1,19 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 
-module EulerHS.Tests.Framework.DBSetup where
+module DBSetup where
 
 import           Data.Aeson as A
 import qualified Database.Beam as B
-import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
+import           Database.Beam.Sqlite.Connection (SqliteM)
 import           EulerHS.Interpreters as I
 import           EulerHS.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Runtime
 import           EulerHS.Types as T
--- import           Named
 import           Sequelize
-
 
 -- TODO: Refactor the helper db functionskA
 -- Prepare custom types for tests
@@ -47,6 +47,7 @@ deriving instance Eq User
 deriving instance ToJSON User
 deriving instance FromJSON User
 
+userTMod :: UserT (B.FieldModification (B.TableField UserT))
 userTMod =
   B.tableModification
     { _userGUID = B.fieldNamed "id"
@@ -59,7 +60,8 @@ userEMod = B.modifyTableFields userTMod
 
 newtype UserDB f = UserDB
     { users :: f (B.TableEntity UserT)
-    } deriving (Generic, B.Database be)
+    } deriving stock (Generic)
+      deriving anyclass (B.Database be)
 
 userDB :: B.DatabaseSettings be UserDB
 userDB = B.defaultDbSettings `B.withDbModification`
@@ -70,11 +72,12 @@ userDB = B.defaultDbSettings `B.withDbModification`
 -- Prepare connection to database file
 
 testDBName :: String
-testDBName = "test/EulerHS/TestData/test.db"
+testDBName = "test/language/EulerHS/TestData/test.db"
 
 testDBTemplateName :: String
-testDBTemplateName = "test/EulerHS/TestData/test.db.template"
+testDBTemplateName = "test/language/EulerHS/TestData/test.db.template"
 
+poolConfig :: PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
@@ -107,3 +110,12 @@ connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.getOrInitSqlConn cfg >>= \case
     Left e     -> error $ show e
     Right conn -> pure conn
+
+-- runWithSQLConn :: (Show b, Eq b) => Flow b -> IO b
+-- runWithSQLConn flow = do
+--   (recording, recResult) <- runFlowRecording ($) flow
+--   -- putStrLn $ encodePretty $ recording
+--   print $ encode recording
+--   -- writeFile "recorded" $ show $ encode $ recording
+--   -- print recResult
+--   pure recResult
