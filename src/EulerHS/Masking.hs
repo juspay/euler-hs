@@ -6,8 +6,9 @@ import           Data.HashSet (member)
 import           EulerHS.Prelude
 import Data.String.Conversions hiding ((<>))
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AKM
+import qualified Data.Aeson.Key as AKey
 import qualified Data.CaseInsensitive as CI
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HS
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Key as AesonKey
@@ -78,9 +79,9 @@ maskJSON shouldMask maskText mbContentType (Aeson.String r) =
 maskJSON _ _ _ value = value
 
 handleObject :: (Text -> Bool) -> Text -> Maybe ByteString -> Aeson.Object -> Aeson.Object
-handleObject shouldMask maskText mbContentType = HashMap.mapWithKey maskingFn
+handleObject shouldMask maskText mbContentType = AKM.mapWithKey maskingFn
   where
-    maskingFn key value = bool (maskJSON shouldMask maskText mbContentType value) (Aeson.String maskText) $ shouldMask key
+    maskingFn key value = bool (maskJSON shouldMask maskText mbContentType value) (Aeson.String maskText) $ shouldMask (AKey.toText key)
 
 handleQueryString :: ByteString -> Aeson.Value
 handleQueryString strg = Aeson.Object . fmap (Aeson.String . fromMaybe "") . KeyMap.fromList . map (Bifunctor.first AesonKey.fromText) $ HTTP.parseQueryText strg

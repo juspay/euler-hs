@@ -10,7 +10,8 @@ import           EulerHS.KVConnector.Types (KVConnector, MeshMeta(..))
 import           EulerHS.KVConnector.Utils (getPKeyAndValueList, meshModelTableEntityDescriptor, toPSJSON)
 import qualified Data.Aeson as A
 import           Data.Aeson ((.=))
-import qualified Data.HashMap.Strict as HM
+import qualified Data.Aeson.Key as AKey
+import qualified Data.Aeson.KeyMap as AKM
 import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
@@ -76,21 +77,21 @@ whereClauseJsonWithPrimaryKey :: forall be table. (HasCallStack, KVConnector (ta
 whereClauseJsonWithPrimaryKey table whereClause =
   case whereClause of
     A.Object o ->
-      let mbClause = HM.lookup "value1" o
+      let mbClause = AKM.lookup "value1" o
       in case mbClause of
           Just clause ->
             let pKeyValueList = getPKeyAndValueList table
                 modifiedKeyValueList = modifyKeyValue <$> pKeyValueList
-                andOfKeyValueList = A.toJSON $ HM.singleton ("$and" :: Text) $ A.toJSON modifiedKeyValueList
-                modifiedClause = A.toJSON $ HM.singleton ("$and" :: Text) $ A.toJSON [clause, andOfKeyValueList]
-                modifiedObject = HM.insert ("value1" :: Text) modifiedClause o
+                andOfKeyValueList = A.toJSON $ AKM.singleton "$and" $ A.toJSON modifiedKeyValueList
+                modifiedClause = A.toJSON $ AKM.singleton "$and" $ A.toJSON [clause, andOfKeyValueList]
+                modifiedObject = AKM.insert "value1" modifiedClause o
             in A.toJSON modifiedObject
           Nothing -> error "Invalid whereClause, contains no item value1"
     _ -> error "Cannot modify whereClause that is not an Object"
 
   where
     modifyKeyValue :: (Text, A.Value) -> A.Value
-    modifyKeyValue (key, value) = A.toJSON $ HM.singleton key (snd $ (toPSJSON @be @table) (key, value))
+    modifyKeyValue (key, value) = A.toJSON $ AKM.singleton (AKey.fromText key) (snd $ (toPSJSON @be @table) (key, value))
 
 getDeleteQuery :: DBCommandVersion -> Tag -> Double -> DBName -> A.Value -> A.Value
 getDeleteQuery cmdVersion tag timestamp dbName deleteCommand = A.object
@@ -121,7 +122,7 @@ updValToJSON (k, v) = A.object [ "value0" .= k, "value1" .= v ]
 
 whereClauseToJson :: (Model be table, MeshMeta be table) => Where be table -> A.Value
 whereClauseToJson whereClause = A.object
-    [ ("value0" :: Text) .= ("where" :: Text)
+    [ "value0" .= ("where" :: Text)
     , "value1" .= modelEncodeWhere whereClause
     ]
 
@@ -152,19 +153,19 @@ encodeClause dt w =
         Or cs -> foldOr cs
         Is column val -> foldIs column val
       foldAnd = \case
-        [] -> HM.empty
+        [] -> AKM.empty
         [x] -> foldWhere' x
-        xs -> HM.singleton "$and" (A.toJSON $ map foldWhere' xs)
+        xs -> AKM.singleton "$and" (A.toJSON $ map foldWhere' xs)
       foldOr = \case
-        [] -> HM.empty
+        [] -> AKM.empty
         [x] -> foldWhere' x
-        xs -> HM.singleton "$or" (A.toJSON $ map foldWhere' xs)
+        xs -> AKM.singleton "$or" (A.toJSON $ map foldWhere' xs)
       foldIs :: A.ToJSON a => Column table value -> Term be a -> A.Object
       foldIs column term =
         let key =
               B._fieldName . fromColumnar' . column . columnize $
                 B.dbTableSettings dt
-         in HM.singleton key $ (encodeTerm @table) key term
+         in AKM.singleton (AKey.fromText key) $ (encodeTerm @table) key term
    in foldWhere' w
 
 encodeTerm :: forall table be value. (A.ToJSON value, MeshMeta be table) => Text -> Term be value -> A.Value
@@ -188,8 +189,8 @@ encodeTerm key = \case
     modifyToPsFormat val = snd $ (toPSJSON @be @table) (key, A.toJSON val)
 
 array :: Text -> [A.Value] -> A.Value
-array k vs = A.toJSON $ HM.singleton k vs
+array k vs = A.toJSON $ AKM.singleton (AKey.fromText k) vs
 
 single :: Text -> A.Value -> A.Value
-single k v = A.toJSON $ HM.singleton k v
+single k v = A.toJSON $ AKM.singleton (AKey.fromText k) v
 

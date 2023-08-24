@@ -8,7 +8,10 @@ module EulerHS.KVConnector.Utils where
 
 import           EulerHS.Prelude
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as AKM
+import qualified Data.Aeson.Key as AKey
 import           Data.Aeson.Encode.Pretty (encodePretty)
+import qualified Data.List as DL
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
 import qualified Data.ByteString.Lazy as BSL
@@ -65,9 +68,9 @@ updateModel :: forall be table.
   ) =>
   table Identity -> [(Text, A.Value)] -> MeshResult A.Value
 updateModel model updVals = do
-  let updVals' = map (\(key,v) -> (key, Map.findWithDefault id key (valueMapper @be @table) v)) updVals
+  let updVals' = map (\(key,v) -> (AKey.fromText key, Map.findWithDefault id key (valueMapper @be @table) v)) updVals
   case A.toJSON model of
-    A.Object o -> Right (A.Object $ foldr (uncurry HM.insert) o updVals')
+    A.Object o -> Right (A.Object $ foldr (uncurry AKM.insert) o updVals')
     o -> Left $ MUpdateFailed
       ("Failed to update a model. Expected a JSON object but got '" <>
         (decodeUtf8 . BSL.toStrict . encodePretty $ o) <>
@@ -159,11 +162,11 @@ getPKeyAndValueList table = do
       keyValueList = sortBy (compare `on` fst) k
       rowObject = A.toJSON table
   case rowObject of
-    A.Object hm -> foldl' (\ acc x -> (go hm x) : acc) [] keyValueList
+    A.Object hm -> DL.foldl' (\acc x -> [go hm x] <> acc) [] keyValueList
     _ -> error "Cannot work on row that isn't an Object"
 
   where 
-    go hm x = case HM.lookup (fst x) hm of
+    go hm x = case AKM.lookup (AKey.fromText $ fst x) hm of
       Just val -> (fst x, val)
       Nothing  -> error $ "Cannot find " <> (fst x) <> " field in the row"
 
@@ -197,14 +200,14 @@ unsafeJSONSetAutoIncId meshCfg obj = do
     [(field, _)] ->
       case A.toJSON obj of
         A.Object o -> do
-          if HM.member field o
+          if AKM.member (AKey.fromText field) o
             then pure $ Right obj
             else do
               autoIncIdRes <- getAutoIncId meshCfg (tableName @(table Identity))
               case autoIncIdRes of
                 Right value -> do
                   let jsonVal = A.toJSON value
-                      newObj = A.Object (HM.insert field jsonVal o)
+                      newObj = A.Object (AKM.insert (AKey.fromText field) jsonVal o)
                   case resultToEither $ A.fromJSON newObj of
                     Right r -> pure $ Right r
                     Left e  -> pure $ Left $ MDecodingError (show e)
