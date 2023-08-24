@@ -38,6 +38,7 @@ import           Control.Arrow ((>>>))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum)
+import           Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
