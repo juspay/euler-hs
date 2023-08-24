@@ -299,16 +299,16 @@ getConfigStreamBasename :: Text
 getConfigStreamBasename = fromMaybe "ConfigStream" $ lookupEnvT "CONFIG_STREAM_BASE_NAME"
 
 getConfigStreamMaxShards :: Int
-getConfigStreamMaxShards = fromMaybe 20 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_MAX_SHARDS"
+getConfigStreamMaxShards = fromMaybe 20 $ readMaybe =<< lookupEnvT @String "CONFIG_STREAM_MAX_SHARDS"
 
 getConfigStreamLooperDelayInSec :: Int
-getConfigStreamLooperDelayInSec = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_LOOPER_DELAY_IN_SEC"
+getConfigStreamLooperDelayInSec = fromMaybe 5 $ readMaybe =<< lookupEnvT @String "CONFIG_STREAM_LOOPER_DELAY_IN_SEC"
 
 getConfigEntryTtlJitterInSeconds :: Int
-getConfigEntryTtlJitterInSeconds = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_TTL_JITTER_IN_SEC"
+getConfigEntryTtlJitterInSeconds = fromMaybe 5 $ readMaybe =<< lookupEnvT @String "CONFIG_STREAM_TTL_JITTER_IN_SEC"
 
 getConfigEntryBaseTtlInSeconds :: Int
-getConfigEntryBaseTtlInSeconds = fromMaybe 10 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_BASE_TTL_IN_SEC"
+getConfigEntryBaseTtlInSeconds = fromMaybe 10 $ readMaybe =<< lookupEnvT @String "CONFIG_STREAM_BASE_TTL_IN_SEC"
 
 getConfigEntryNewTtl :: (L.MonadFlow m) => m LocalTime
 getConfigEntryNewTtl = do
@@ -466,19 +466,19 @@ whereClauseDiffCheck whereClause =
         _ -> checkForPrimaryOrSecondary keyHashMap xs
 
 isWhereClauseDiffCheckEnabled :: Bool
-isWhereClauseDiffCheckEnabled = fromMaybe True $ readMaybe =<< lookupEnvT "IS_WHERE_CLAUSE_DIFF_CHECK_ENABLED"
+isWhereClauseDiffCheckEnabled = fromMaybe True $ readMaybe =<< lookupEnvT @String "IS_WHERE_CLAUSE_DIFF_CHECK_ENABLED"
 
 isRecachingEnabled :: Bool
-isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"
+isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT @String "IS_RECACHING_ENABLED"
 
 shouldLogFindDBCallLogs :: Bool
-shouldLogFindDBCallLogs = fromMaybe False $ readMaybe =<< lookupEnvT "IS_FIND_DB_LOGS_ENABLED"
+shouldLogFindDBCallLogs = fromMaybe False $ readMaybe =<< lookupEnvT @String "IS_FIND_DB_LOGS_ENABLED"
 
 isLogsEnabledForModel :: Text -> Bool
 isLogsEnabledForModel modelName = do
   let env :: Text = fromMaybe "development" $ lookupEnvT "NODE_ENV"
   if env == "production" then do
-    let enableModelList = fromMaybe [] $ readMaybe =<< lookupEnvT "IS_LOGS_ENABLED_FOR_MODEL"
+    let enableModelList = fromMaybe [] $ readMaybe =<< lookupEnvT @String "IS_LOGS_ENABLED_FOR_MODEL"
     modelName `elem` enableModelList
     else True
 

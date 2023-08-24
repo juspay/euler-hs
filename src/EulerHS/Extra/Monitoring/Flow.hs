@@ -23,10 +23,10 @@ import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           Euler.Events.MetricApi.MetricApi
 
 isLatencyMetricEnabled :: Bool
-isLatencyMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "LATENCY_METRIC_ENABLED"
+isLatencyMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT @String "LATENCY_METRIC_ENABLED"
 
 isLatencyPromMetricEnabled :: Bool
-isLatencyPromMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "LATENCY_PROM_METRIC_ENABLED"
+isLatencyPromMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT @String "LATENCY_PROM_METRIC_ENABLED"
 
 getCurrentDateInMillisIO :: IO Double
 getCurrentDateInMillisIO = do
