@@ -127,12 +127,12 @@ class BeamRunner beM where
 
 instance BeamRunner BS.SqliteM where
   getBeamDebugRunner (NativeSQLiteConn conn) beM =
-    \logger -> SQLite.runBeamSqliteDebug (logger . T.pack) conn beM
+    \logger -> SQLite.runBeamSqliteDebug (logger) conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
 
 instance BeamRunner BP.Pg where
   getBeamDebugRunner (NativePGConn conn) beM =
-    \logger -> BP.runBeamPostgresDebug (logger . T.pack) conn beM
+    \logger -> BP.runBeamPostgresDebug (logger) conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a Postgres connection"
 
 instance BeamRunner BM.MySQLM where
