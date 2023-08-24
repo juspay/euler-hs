@@ -218,9 +218,9 @@ buildSettings HTTPClientSettings{..} =
 
     mkP12Cert pfx passPhrase = do
       pkcs12Cert <- mapLeftShow $ PKCS12.readP12FileFromMemory pfx
-      cert <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Cert
+      cert <- mapLeftShow $ (snd <$> PKCS12.recoverAuthenticated  passPhrase pkcs12Cert)
       let pkcs12Creds = PKCS12.toCredential cert
-      maybeCreds <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Creds
+      maybeCreds <- mapLeftShow $ PKCS12.recover (PKCS12.toProtectionPassword passPhrase) pkcs12Creds
       maybe (Left "Invalid P12 certificate") Right maybeCreds
 
     mapLeftShow = Extra.mapLeft show
