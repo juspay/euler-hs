@@ -155,7 +155,6 @@ data NativeSqlPool
   = NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
   | NativeMySQLPool (DP.Pool MySQL.MySQLConn)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
-  deriving stock (Show)
 
 -- | Representation of native DB connections that we use in implementation.
 data NativeSqlConn
