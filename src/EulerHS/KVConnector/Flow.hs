@@ -796,7 +796,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
       kvRes <- redisFindAll meshCfg whereClause
       case kvRes of
         Right kvRows -> do
-          let matchedKVLiveRows = fst kvRows
+          let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
               matchedKVDeadRows = snd kvRows
               offset = fromMaybe 0 mbOffset
               shift = length matchedKVLiveRows + length matchedKVDeadRows
@@ -812,7 +812,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
             Left err -> pure $ Left $ MDBError err
             Right [] -> pure $ Right $ applyOptions offset matchedKVLiveRows
             Right dbRows -> do
-              let mergedRows = mergeKVAndDBResults (removeDeleteResults matchedKVDeadRows dbRows) matchedKVLiveRows
+              let mergedRows = matchedKVLiveRows ++ getUniqueDBRes dbRows (snd kvRows ++ fst kvRows)
               if isJust mbOffset
                 then do
                   let noOfRowsFelledLeftSide = calculateLeftFelledRedisEntries matchedKVLiveRows dbRows
