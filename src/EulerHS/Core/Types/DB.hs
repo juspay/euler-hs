@@ -175,7 +175,8 @@ data NativeSqlPool
   | NativeMySQLPool (DP.Pool MySQL.MySQLConn)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
   | NativeMockedPool
-  deriving Show
+
+instance Show NativeSqlPool
 
 -- | Representation of native DB connections that we use in implementation.
 data NativeSqlConn
