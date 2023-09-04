@@ -170,7 +170,6 @@ withRedirects :: Int -> HTTPRequest -> HTTPRequest
 withRedirects redirects request =
   request {getRequestRedirects = Just redirects}
 
--- TODO: Rename to `withFormData` or some such?
 withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
 withBody pairs request = request {getRequestBody = Just body}
   where

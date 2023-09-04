@@ -1,6 +1,3 @@
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {- |
 Module      :  EulerHS.Core.Api
 Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
@@ -13,6 +10,9 @@ This module contains implementation of the low-level HTTP client subsystem.
 
 This is an internal module. Import EulerHS.Types instead.
 -}
+
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 
 module EulerHS.Core.Api where

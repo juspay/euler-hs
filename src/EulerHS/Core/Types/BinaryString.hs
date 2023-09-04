@@ -1,3 +1,12 @@
+{- |
+Module      :  EulerHS.Core.Types.BinaryString
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+-}
+
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module EulerHS.Core.Types.BinaryString
@@ -17,7 +26,7 @@ import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 
--- TODO: Move to euler-db
+
 
 --------------------------------------------------------------------------
 -- Base64 encoding/decoding helpers

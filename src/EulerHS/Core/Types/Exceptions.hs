@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 {- |
 Module      :  EulerHS.Core.Types.Exceptions
 Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
@@ -14,6 +12,7 @@ This module is internal and should not imported in the projects.
 Import 'EulerHS.Types' instead.
 -}
 
+{-# LANGUAGE DeriveAnyClass #-}
 module EulerHS.Core.Types.Exceptions
   ( -- * Exceptions
     HttpManagerNotFound(..)

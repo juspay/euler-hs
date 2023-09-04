@@ -1,3 +1,12 @@
+{- |
+Module      :  EulerHS.Framework.Flow.Language
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+-}
+
 {-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -1110,11 +1119,6 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
 
--- TODO: save a builder in some state for using `hPutBuilder`?
---
--- Doubts:
--- Is it the right place to put it?
--- Should the type be more generic than IO ()?
 logCallStack :: (HasCallStack, MonadFlow m) => m ()
 logCallStack = logDebug ("CALLSTACK" :: Text) $ Text.pack $ prettyCallStack callStack
 

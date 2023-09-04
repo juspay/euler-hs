@@ -1,24 +1,21 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module SQLDB.TestData.Scenarios.MySQL where
-
-import           EulerHS.Prelude
-
-import qualified EulerHS.Language as L
-import qualified EulerHS.Types as T
-
-import           SQLDB.TestData.Connections (connectOrFail)
-import           SQLDB.TestData.Types
 
 import           Database.Beam ((<-.), (==.))
 import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
-
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
+import qualified EulerHS.Types as T
+import           SQLDB.TestData.Types
 
 uniqueConstraintViolationDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      L.runDB conn $
+      _ <- L.runDB conn $
         L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 2 "Rosa" "Rosa"]
@@ -48,7 +45,7 @@ uniqueConstraintViolationMickeyDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      L.runDB conn $
+      _ <- L.runDB conn $
         L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 4 "Mickey" "Mouse"]
@@ -74,7 +71,7 @@ throwExceptionFlowScript dbcfg = do
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 6 "Billy" "Evil"]
 
-        L.sqlThrowException ThisException
+        _ <- L.sqlThrowException ThisException
 
         L.insertRows
           $ B.insert (_users eulerDb)
@@ -118,7 +115,7 @@ selectRowDbScript userId dbcfg = do
 
     flip (either $ error "Unable to get connection") econn $ \conn ->
       L.runDB conn $ do
-        let predicate User {..} = _userId ==. (B.val_ userId)
+        let predicate User {..} = _userId ==. B.val_ userId
         L.findRow
           $ B.select
           $ B.limit_ 1
@@ -131,7 +128,7 @@ selectOneDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      L.runDB conn
+      _ <- L.runDB conn
         $ L.insertRows
         $ B.insert (_users eulerDb)
         $ B.insertExpressions (mkUser <$> susers)

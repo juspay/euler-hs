@@ -1,3 +1,12 @@
+{- |
+Module      :  EulerHS.Core.Types.MySQL
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+-}
+
 {-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
@@ -50,20 +59,13 @@ data MySqlOption
   = ConnectTimeout Word
   | Compress
   | NamedPipe
-  -- | InitCommand ByteString       -- TODO
   | ReadDefaultFile FilePath
-  -- | ReadDefaultGroup ByteString  -- TODO
   | CharsetDir FilePath
   | CharsetName String
   | LocalInFile Bool
   | Protocol MySqlProtocol
-  -- | SharedMemoryBaseName ByteString  -- TODO
   | ReadTimeout Word
   | WriteTimeout Word
-  -- | UseRemoteConnection
-  -- | UseEmbeddedConnection
-  -- | GuessConnection
-  -- | ClientIP ByteString
   | SecureAuth Bool
   | ReportDataTruncation Bool
   | Reconnect Bool

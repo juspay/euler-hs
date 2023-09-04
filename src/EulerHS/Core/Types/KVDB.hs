@@ -1,3 +1,12 @@
+{- |
+Module      :  EulerHS.Core.Types.KVDB
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+-}
+
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards    #-}
@@ -60,7 +69,7 @@ type KVDBKey = Text
 
 -- Key-value database connection
 data KVDBConn
-  = Mocked Text -- TODO swap Text with ConnTag type
+  = Mocked Text 
   | Redis Text RD.Connection
   -- ^ Real connection.
   deriving (Generic)

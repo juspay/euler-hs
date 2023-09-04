@@ -1,3 +1,16 @@
+{- |
+Module      :  EulerHS.Core.Logger.Interpreter
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
+
+This module contains interpreter for Logger language and used in Logger runtime
+Also this is to interpret the Logger language and convert it to
+logger commands and execute them
+-}
+
 {-# LANGUAGE BangPatterns #-}
 
 module EulerHS.Core.Logger.Interpreter

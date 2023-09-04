@@ -1,8 +1,3 @@
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskell       #-}
-
 {- |
 Module      :  EulerHS.Core.SqlDB.Language
 Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
@@ -18,6 +13,11 @@ Uses `beam` as relational DBs connector.
 This module is internal and should not imported in the projects.
 Import 'EulerHS.Language' instead.
 -}
+
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 module EulerHS.Core.SqlDB.Language
   (

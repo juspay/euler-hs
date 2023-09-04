@@ -7,15 +7,27 @@
     haskell-flake.follows = "common/haskell-flake";
 
     # Haskell dependencies
-    sequelize.url = "github:juspay/haskell-sequelize/beckn-compatible";
+    cereal.url = "github:juspay/cereal/213f145ccbd99e630ee832d2f5b22894c810d3cc";
+    cereal.flake = false;
+
+    juspay-extra.url = "github:juspay/euler-haskell-common";
+    juspay-extra.inputs.haskell-flake.follows = "common/haskell-flake";
+
+    euler-events-hs.url = "github:juspay/euler-events-hs/main";
+    euler-events-hs.inputs.haskell-flake.follows = "common/haskell-flake";
+
+    sequelize.url = "github:juspay/haskell-sequelize/dc01b0f9e6ba5a51dd8f9d0744a549dc9c0ba244";
     sequelize.flake = false;
-    beam.url = "github:srid/beam/ghc810"; # https://github.com/juspay/beam/pull/14
+
+    beam.url = "github:srid/beam/ghc810"; 
     beam.flake = false;
-    beam-mysql.url = "github:juspay/beam-mysql/4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace";
+
+    beam-mysql.url = "github:juspay/beam-mysql/b4dbc91276f6a8b5356633492f89bdac34ccd9a1";
     beam-mysql.flake = false;
+
     mysql-haskell.url = "github:juspay/mysql-haskell/788022d65538db422b02ecc0be138b862d2e5cee"; # https://github.com/winterland1989/mysql-haskell/pull/38
     mysql-haskell.flake = false;
-    hedis.url = "github:juspay/hedis/22d814672d8476a6f8fb43047af2897afbf77ac6";
+    hedis.url = "git+https://github.com/juspay/hedis?rev=92a3d5ab73dcb0ea11139a01d6f2950a8b8e7e0e";
     hedis.flake = false;
   };
   outputs = inputs@{ nixpkgs, flake-parts, ... }:
@@ -29,6 +41,10 @@
         packages.default = self'.packages.euler-hs;
         haskellProjects.default = {
           projectFlakeName = "euler-hs";
+          imports = [
+            inputs.euler-events-hs.haskellFlakeProjectModules.output
+            inputs.juspay-extra.haskellFlakeProjectModules.output
+          ];
           basePackages = config.haskellProjects.ghc810.outputs.finalPackages;
           packages = {
             beam-core.source = inputs.beam + /beam-core;
@@ -39,6 +55,7 @@
             hedis.source = inputs.hedis;
             mysql-haskell.source = inputs.mysql-haskell;
             sequelize.source = inputs.sequelize;
+            cereal.source = inputs.cereal;
           };
           settings = {
             beam-core.jailbreak = true;
@@ -61,6 +78,31 @@
               jailbreak = true;
             };
             sequelize.check = false;
+
+            cereal = {
+              check = false;
+              jailbreak = true;
+            };
+            euler-events-hs = {
+              check = false;
+              jailbreak = true;
+            };
+            juspay-extra = {
+              check = false;
+              jailbreak = true;
+            };
+            nonempty-containers = {
+              jailbreak = true;
+            };
+            servant-client = {
+              jailbreak = true;
+            };
+            servant-client-core = {
+              jailbreak = true;
+            };
+            servant-server = {
+              jailbreak = true;
+            };
           };
         };
       };

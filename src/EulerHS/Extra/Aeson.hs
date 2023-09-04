@@ -1,26 +1,87 @@
-module EulerHS.Extra.Aeson
-( stripLensPrefixOptions
-, stripAllLensPrefixOptions
-, jsonSetField
-, encodeJSON
-, decodeJSON
-) where
+{- |
+Module      :  EulerHS.Extra.Aeson
+Copyright   :  (C) Juspay Technologies Pvt Ltd 2019-2022
+License     :  Apache 2.0 (see the file LICENSE)
+Maintainer  :  opensource@juspay.in
+Stability   :  experimental
+Portability :  non-portable
 
+This module contains utility functions for munging JSON data with Aeson.
+-}
+
+{-# LANGUAGE TypeApplications #-}
+
+-- | Utility functions for munging JSON data with Aeson.
+module EulerHS.Extra.Aeson
+  ( -- * Common utility functions
+    obfuscate
+
+    -- * Aeson options presets
+  , aesonOmitNothingFields
+  , stripAllLensPrefixOptions
+  , stripLensPrefixOptions
+  , unaryRecordOptions
+  , untaggedOptions
+  , aesonOptions
+  , aesonOmitNothingOption
+  ) where
+
+import           Data.Aeson (Options (..), SumEncoding (..), Value (..),
+                             defaultOptions)
 import           Prelude
 
-import           Data.Aeson (FromJSON, ToJSON, Options, defaultOptions, fieldLabelModifier)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Text as Aeson
-import qualified Data.ByteString.Lazy as LazyByteString
-import qualified Data.HashMap.Strict as HashMap
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LazyText
+
+{-------------------------------------------------------------------------------
+  Common utility functions
+-------------------------------------------------------------------------------}
+
+-- | Rip away all __simple__ values from a JSON Value.
+obfuscate :: Value -> Value
+obfuscate v = go v where
+    go (Object o)  = Object $ go <$> o
+    go (Array a)   = Array $ go <$> a
+    go (String  _) = String "***"
+    go (Number _)  = Number 0
+    go (Bool _)    = Bool False
+    go Null        = Null
 
 
-stripLensPrefixOptions :: Options
-stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
 
+{- | Use it to omit 'Nothing' fields.
+
+Also previously known as @aesonOrderCreateOptions@, @aesonOmitNothingOption@ and
+broken @aesonOptions@. The latter is broken because of using @omitNothingFields = False@,
+which is default in Aeson.
+
+If you want to show 'Nothing' fields then please just use stock 'defaultOptions'!
+
+>>> encode $ Person "Omar" Nothing
+"{\"name\":\"Omar\"}"
+
+whereas the default behavior is:
+
+>>> encode $ Person "Omar" Nothing
+"{\"age\":null,\"name\":\"Omar\"}"
+
+-}
+aesonOmitNothingFields :: Options
+aesonOmitNothingFields = defaultOptions
+  { omitNothingFields = True 
+  }
+
+{- | Drops all leading characters while they are the same.
+
+@
+data Wooolf = Wooolf
+  { cccName :: Text
+  , cccColour :: Maybe Text
+  }
+@
+
+>>> encode $ Wooolf "Boooss" (Just "grey")
+"{\"Name\":\"Boooss\",\"Colour\":\"grey\"}"
+
+-}
 stripAllLensPrefixOptions :: Options
 stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
   where
@@ -29,22 +90,39 @@ stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
                          then dropWhile (== head field) field
                          else field
 
--- utility functions
+{- | Strips lens-style one-character prefixes (usually @_@) from field names.
 
--- | Set a field inside a JSON Object
-jsonSetField :: ToJSON a => Text -> a -> Aeson.Value -> Aeson.Value
-jsonSetField fieldName fieldValue obj = case obj of
-  Aeson.Object fields ->
-    Aeson.Object $ HashMap.insert fieldName (Aeson.toJSON fieldValue) fields
-  _ ->
-    error $ "This should be an object... got " <> show obj
+@
+data Dog = Dog
+  { cName :: Text
+  , cColour :: Maybe Text
+  }
+@
 
--- | Encode a value to JSON Text
---
--- Note: the name `jsonEncode` is already taken by Aeson
-encodeJSON :: ToJSON a => a -> Text
-encodeJSON = LazyText.toStrict . Aeson.encodeToLazyText
+>>> encode $ Dog "Buddy" (Just "white")
+"{\"Name\":\"Buddy\",\"Colour\":\"white\"}"
 
--- | Parse JSON Text into a value
-decodeJSON :: FromJSON a => Text -> Maybe a
-decodeJSON = Aeson.decode . LazyByteString.fromStrict . Text.encodeUtf8
+-}
+stripLensPrefixOptions :: Options
+stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
+
+
+unaryRecordOptions :: Options
+unaryRecordOptions = defaultOptions
+  { unwrapUnaryRecords = True
+  }
+
+
+untaggedOptions :: Options
+untaggedOptions = defaultOptions { sumEncoding = UntaggedValue }
+
+aesonOptions :: Options
+aesonOptions = defaultOptions
+  { omitNothingFields = False
+  }
+
+aesonOmitNothingOption :: Options
+aesonOmitNothingOption = defaultOptions
+  { omitNothingFields = True
+  }
+

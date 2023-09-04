@@ -1,7 +1,3 @@
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE FunctionalDependencies     #-}
-{-# LANGUAGE RecordWildCards            #-}
 
 {- |
 Module      :  EulerHS.Core.Types.DB
@@ -22,6 +18,11 @@ Types and helpers for specific databases can be found in separate modules:
 'EulerHS.Core.Types.MySQL'
 'EulerHS.Core.Types.Postgres'
 -}
+
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module EulerHS.Core.Types.DB
   (
@@ -96,7 +97,6 @@ class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   rtUpdateReturningList :: forall table. (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlUpdate be table -> beM [table Identity]
   rtDelete              :: B.SqlDelete be table -> beM ()
 
--- TODO: move somewhere (it's implementation)
 instance BeamRuntime BS.Sqlite BS.SqliteM where
   rtSelectReturningList = B.runSelectReturningList
   rtSelectReturningOne = B.runSelectReturningOne
@@ -106,7 +106,6 @@ instance BeamRuntime BS.Sqlite BS.SqliteM where
   rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
 
--- TODO: move somewhere (it's implementation)
 instance BeamRuntime BP.Postgres BP.Pg where
   rtSelectReturningList = B.runSelectReturningList
   rtSelectReturningOne = B.runSelectReturningOne
@@ -450,7 +449,6 @@ postgresErrorToDbError descr e = DBError (SQLError $ PostgresError $ toPostgresS
 ----------------------------------------------------------------------
 
 
--- TODO: more informative typed error.
 -- | Represents failures that may occur while working with the database
 data DBErrorType
   = ConnectionFailed

@@ -1,31 +1,23 @@
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 
 module SQLDB.Tests.QueryExamplesSpec where
 
-
-import           Data.Aeson (encode)
-import qualified Data.ByteString.Lazy as BSL
 import           Data.Time
-import           EulerHS.Prelude hiding (getOption)
-import           Test.Hspec hiding (runIO)
-import           Unsafe.Coerce
-
+import           Database.Beam ((&&.), (<.), (==.), (>=.))
+import qualified Database.Beam as B
+import           Database.Beam.Sqlite (SqliteM)
 import           EulerHS.Interpreters
 import           EulerHS.Language
-import           EulerHS.Runtime (withFlowRuntime)
-import           EulerHS.Types hiding (error)
-
 import qualified EulerHS.Language as L
+import           EulerHS.Prelude hiding (getOption)
+import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Runtime as R
+import           EulerHS.Types (_isAsync, _logFilePath, _logToFile,
+                                defaultLoggerConfig)
 import qualified EulerHS.Types as T
-
-import           Database.Beam ((&&.), (/=.), (<-.), (<.), (==.), (>.), (>=.))
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import qualified Database.Beam.Sqlite as BS
-
+import           Test.Hspec hiding (runIO)
 
 date1 :: LocalTime
 date1 =  LocalTime
@@ -213,12 +205,14 @@ testDBName = "./testDB/SQLDB/TestData/test.db"
 testDBTemplateName :: String
 testDBTemplateName = "./testDB/SQLDB/TestData/query_examples.db.template"
 
+poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
   , resourcesPerStripe = 50
   }
 
+sqliteCfg :: T.DBConfig SqliteM
 sqliteCfg = T.mkSQLitePoolConfig "clubSQliteDB" testDBName poolConfig
 
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
@@ -233,7 +227,6 @@ prepareTestDB :: L.Flow ()
 prepareTestDB = do
   rmTestDB
   void $ L.runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
-  pure ()
 
 
 --Basic string searches
@@ -285,10 +278,10 @@ selectWithUnion = do
   conn <- connectOrFail sqliteCfg
   L.runDB conn $
     let
-      sn = fmap surName
-        $ B.all_ (members clubDB)
-      n = fmap name
-        $ B.all_ (facilities clubDB)
+      sn = surName
+        <$> B.all_ (members clubDB)
+      n = name
+        <$> B.all_ (facilities clubDB)
     in L.findRows $ B.select $ B.limit_ 3 $ B.union_ sn n
 
 
@@ -297,16 +290,16 @@ aggregate1 = do
   conn <- connectOrFail sqliteCfg
   res <- L.runDB conn $
     L.findRow $ B.select
-    $ B.aggregate_ (\m -> B.max_ (joinDate m ))
+    $ B.aggregate_ (B.max_ . joinDate)
     $ B.all_ (members clubDB)
   pure $ join <$> res
 
-aggregate2 :: L.Flow (T.DBResult (Maybe (Text, Text,(LocalTime))))
+aggregate2 :: L.Flow (T.DBResult (Maybe (Text, Text, LocalTime)))
 aggregate2 = do
   conn <- connectOrFail sqliteCfg
   L.runDB conn $
     L.findRow $ B.select $ do
-      mdate <- B.aggregate_ (\ms -> ( B.max_ (joinDate ms)))
+      mdate <- B.aggregate_ (B.max_ . joinDate)
           $ B.all_ (members clubDB)
       lm <- B.filter_ (\m -> joinDate m ==. B.fromMaybe_ (B.val_ date2) mdate) $ B.all_ (members clubDB)
       pure (firstName lm, surName lm, joinDate lm)
@@ -333,12 +326,12 @@ join2 = do
     $ do
       fs <- B.all_ (facilities clubDB)
       bs <- B.join_ (bookings clubDB) (\book -> facId book ==. B.primaryKey fs)
-      B.guard_ ( starttime bs >=. (B.val_ date3)
-             &&. starttime bs <. (B.val_ date4)
+      B.guard_ ( starttime bs >=. B.val_ date3
+             &&. starttime bs <. B.val_ date4
              &&. name fs `B.like_` "%Tennis Court%")
       pure (fs, bs)
 
-
+loggerCfg :: T.LoggerConfig
 loggerCfg = defaultLoggerConfig
         { _logToFile = True
         , _logFilePath = "/tmp/euler-backend.log"
