@@ -17,6 +17,7 @@ module EulerHS.KVConnector.Flow
     getFieldsAndValuesFromClause,
     updateAllReturningWithKVConnector,
     findAllWithOptionsKVConnector,
+    findAllWithOptionsKVConnector',
     deleteWithKVConnector,
     deleteReturningWithKVConnector,
     deleteAllReturningWithKVConnector
@@ -50,6 +51,7 @@ import           Named (defaults, (!))
 import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
 import           System.CPUTime (getCPUTime)
+import qualified Data.Maybe as DMaybe
 
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
@@ -770,6 +772,91 @@ findOneFromDB dbConf whereClause = do
   mapLeft MDBError <$> runQuery dbConf findQuery
 
 
+
+findAllWithOptionsHelper :: forall be table beM m.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    Model be table,
+    MeshMeta be table,
+    KVConnector (table Identity),
+    Serialize.Serialize (table Identity),
+    Show (table Identity),
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    L.MonadFlow m, B.HasQBuilder be, BeamRunner beM) =>
+  DBConfig beM ->
+  MeshConfig ->
+  Where be table ->
+  Maybe (OrderBy table) ->
+  Maybe Int ->
+  Maybe Int ->
+  m (MeshResult [table Identity])
+findAllWithOptionsHelper dbConf meshCfg whereClause orderBy mbLimit mbOffset = do
+  let isDisabled = meshCfg.kvHardKilled  
+  res <- if not isDisabled
+    then do
+      kvRes <- redisFindAll meshCfg whereClause
+      case kvRes of
+        Right kvRows -> do
+          let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
+              matchedKVDeadRows = snd kvRows
+              offset = fromMaybe 0 mbOffset
+              shift = length matchedKVLiveRows + length matchedKVDeadRows
+              updatedOffset = if offset - shift >= 0 then offset - shift else 0
+              findAllQueryUpdated = DB.findRows (sqlSelect'
+                ! #where_ whereClause
+                ! #orderBy (if isJust orderBy then Just [DMaybe.fromJust orderBy] else Nothing)
+                ! #limit ((shift +) <$> mbLimit)
+                ! #offset (Just updatedOffset) -- Offset is 0 in case mbOffset Nothing
+                ! defaults)
+          dbRes <- runQuery dbConf findAllQueryUpdated
+          case dbRes of
+            Left err -> pure $ Left $ MDBError err
+            Right [] -> pure $ Right $ applyOptions offset matchedKVLiveRows
+            Right dbRows -> do
+              let mergedRows = matchedKVLiveRows ++ getUniqueDBRes dbRows (snd kvRows ++ fst kvRows)
+              if isJust mbOffset
+                then do
+                  let noOfRowsFelledLeftSide = calculateLeftFelledRedisEntries matchedKVLiveRows dbRows
+                  pure $ Right $ applyOptions ((if updatedOffset == 0 then offset else shift) - noOfRowsFelledLeftSide) mergedRows
+                else pure $ Right $ applyOptions 0 mergedRows
+        Left err -> pure $ Left err
+    else do
+      let findAllQuery = DB.findRows (sqlSelect'
+            ! #where_ whereClause
+            ! #orderBy (if isJust orderBy then Just [DMaybe.fromJust orderBy] else Nothing)
+            ! #limit mbLimit
+            ! #offset mbOffset
+            ! defaults)
+      mapLeft MDBError <$> runQuery dbConf findAllQuery
+  diffRes <- whereClauseDiffCheck whereClause
+  let source = if not isDisabled then KV_AND_SQL else SQL
+  pure res
+    where
+      applyOptions :: Int -> [table Identity] -> [table Identity]
+      applyOptions shift rows = do
+        let resWithoutLimit = case orderBy of 
+                          Nothing -> drop shift rows
+                          Just res -> do
+                            let cmp = case res of 
+                                  Asc col -> compareCols (fromColumnar' . col . columnize) True
+                                  Desc col -> compareCols (fromColumnar' . col . columnize) False
+                            (drop shift . sortBy cmp) rows
+        maybe resWithoutLimit (`take` resWithoutLimit) mbLimit
+      compareCols :: (Ord value) => (table Identity -> value) -> Bool -> table Identity -> table Identity -> Ordering
+      compareCols col isAsc r1 r2 = if isAsc then compare (col r1) (col r2) else compare (col r2) (col r1)
+
+      calculateLeftFelledRedisEntries :: [table Identity] -> [table Identity] -> Int
+      calculateLeftFelledRedisEntries kvRows dbRows = do
+        case orderBy of
+          Just (Asc col) -> do
+            let dbMn = maximum $ map (fromColumnar' . col . columnize) dbRows
+            length $ filter (\r -> dbMn > fromColumnar' (col $ columnize r)) kvRows
+          Just (Desc col) -> do
+            let dbMx = maximum $ map (fromColumnar' . col . columnize) dbRows
+            length $ filter (\r -> dbMx < fromColumnar' (col $ columnize r)) kvRows
+          Nothing -> 0
+
 -- Need to recheck offset implementation
 findAllWithOptionsKVConnector :: forall be table beM m.
   ( HasCallStack,
@@ -790,68 +877,28 @@ findAllWithOptionsKVConnector :: forall be table beM m.
   Maybe Int ->
   m (MeshResult [table Identity])
 findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffset = do
-  let isDisabled = meshCfg.kvHardKilled  
-  res <- if not isDisabled
-    then do
-      kvRes <- redisFindAll meshCfg whereClause
-      case kvRes of
-        Right kvRows -> do
-          let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
-              matchedKVDeadRows = snd kvRows
-              offset = fromMaybe 0 mbOffset
-              shift = length matchedKVLiveRows + length matchedKVDeadRows
-              updatedOffset = if offset - shift >= 0 then offset - shift else 0
-              findAllQueryUpdated = DB.findRows (sqlSelect'
-                ! #where_ whereClause
-                ! #orderBy (Just [orderBy])
-                ! #limit ((shift +) <$> mbLimit)
-                ! #offset (Just updatedOffset) -- Offset is 0 in case mbOffset Nothing
-                ! defaults)
-          dbRes <- runQuery dbConf findAllQueryUpdated
-          case dbRes of
-            Left err -> pure $ Left $ MDBError err
-            Right [] -> pure $ Right $ applyOptions offset matchedKVLiveRows
-            Right dbRows -> do
-              let mergedRows = matchedKVLiveRows ++ getUniqueDBRes dbRows (snd kvRows ++ fst kvRows)
-              if isJust mbOffset
-                then do
-                  let noOfRowsFelledLeftSide = calculateLeftFelledRedisEntries matchedKVLiveRows dbRows
-                  pure $ Right $ applyOptions ((if updatedOffset == 0 then offset else shift) - noOfRowsFelledLeftSide) mergedRows
-                else pure $ Right $ applyOptions 0 mergedRows
-        Left err -> pure $ Left err
-    else do
-      let findAllQuery = DB.findRows (sqlSelect'
-            ! #where_ whereClause
-            ! #orderBy (Just [orderBy])
-            ! #limit mbLimit
-            ! #offset mbOffset
-            ! defaults)
-      mapLeft MDBError <$> runQuery dbConf findAllQuery
-  diffRes <- whereClauseDiffCheck whereClause
-  let source = if not isDisabled then KV_AND_SQL else SQL
-  pure res
+  findAllWithOptionsHelper dbConf meshCfg whereClause (Just orderBy) mbLimit mbOffset
 
-    where
-      applyOptions :: Int -> [table Identity] -> [table Identity]
-      applyOptions shift rows = do
-        let cmp = case orderBy of
-              (Asc col) -> compareCols (fromColumnar' . col . columnize) True
-              (Desc col) -> compareCols (fromColumnar' . col . columnize) False
-        let resWithoutLimit = (drop shift . sortBy cmp) rows
-        maybe resWithoutLimit (`take` resWithoutLimit) mbLimit
-
-      compareCols :: (Ord value) => (table Identity -> value) -> Bool -> table Identity -> table Identity -> Ordering
-      compareCols col isAsc r1 r2 = if isAsc then compare (col r1) (col r2) else compare (col r2) (col r1)
-
-      calculateLeftFelledRedisEntries :: [table Identity] -> [table Identity] -> Int
-      calculateLeftFelledRedisEntries kvRows dbRows = do
-        case orderBy of
-          (Asc col) -> do
-            let dbMn = maximum $ map (fromColumnar' . col . columnize) dbRows
-            length $ filter (\r -> dbMn > fromColumnar' (col $ columnize r)) kvRows
-          (Desc col) -> do
-            let dbMx = maximum $ map (fromColumnar' . col . columnize) dbRows
-            length $ filter (\r -> dbMx < fromColumnar' (col $ columnize r)) kvRows
+-- Need to recheck offset implementation
+findAllWithOptionsKVConnector' :: forall be table beM m.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    Model be table,
+    MeshMeta be table,
+    KVConnector (table Identity),
+    Serialize.Serialize (table Identity),
+    Show (table Identity),
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    L.MonadFlow m, B.HasQBuilder be, BeamRunner beM) =>
+  DBConfig beM ->
+  MeshConfig ->
+  Where be table ->
+  Maybe Int ->
+  Maybe Int ->
+  m (MeshResult [table Identity])
+findAllWithOptionsKVConnector' dbConf meshCfg whereClause mbLimit mbOffset = 
+  findAllWithOptionsHelper dbConf meshCfg whereClause Nothing mbLimit mbOffset
 
 findAllWithKVConnector :: forall be table beM m.
   ( HasCallStack,
