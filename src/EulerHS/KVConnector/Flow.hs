@@ -20,7 +20,8 @@ module EulerHS.KVConnector.Flow
     findAllWithOptionsKVConnector',
     deleteWithKVConnector,
     deleteReturningWithKVConnector,
-    deleteAllReturningWithKVConnector
+    deleteAllReturningWithKVConnector,
+    findAllWithKVAndConditionalDBInternal
   )
  where
 
@@ -897,8 +898,8 @@ findAllWithOptionsKVConnector' :: forall be table beM m.
   Maybe Int ->
   Maybe Int ->
   m (MeshResult [table Identity])
-findAllWithOptionsKVConnector' dbConf meshCfg whereClause mbLimit mbOffset = 
-  findAllWithOptionsHelper dbConf meshCfg whereClause Nothing mbLimit mbOffset
+findAllWithOptionsKVConnector' dbConf meshCfg whereClause  = 
+  findAllWithOptionsHelper dbConf meshCfg whereClause Nothing 
 
 findAllWithKVConnector :: forall be table beM m.
   ( HasCallStack,
@@ -925,7 +926,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
           let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
           dbRes <- runQuery dbConf findAllQuery
           case dbRes of
-            Right dbRows -> pure $ Right $ matchedKVLiveRows ++ (getUniqueDBRes dbRows (fst kvRows ++ snd kvRows))
+            Right dbRows -> pure $ Right $ matchedKVLiveRows ++ getUniqueDBRes dbRows (fst kvRows ++ snd kvRows)
             Left err     -> return $ Left $ MDBError err
         Left err -> return $ Left err  
     else do
@@ -933,6 +934,41 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
   diffRes <- whereClauseDiffCheck whereClause
   let source = if not isDisabled then KV_AND_SQL else SQL
   pure res
+
+findAllWithKVAndConditionalDBInternal :: forall be table beM m.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    Model be table,
+    MeshMeta be table,
+    KVConnector (table Identity),
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    Serialize.Serialize (table Identity),
+    L.MonadFlow m, B.HasQBuilder be, BeamRunner beM) =>
+  DBConfig beM ->
+  MeshConfig ->
+  Where be table ->
+  m (MeshResult [table Identity])
+findAllWithKVAndConditionalDBInternal dbConf meshCfg whereClause  = do
+  let isDisabled = meshCfg.kvHardKilled
+  if not isDisabled 
+    then do
+      kvRes <- redisFindAll meshCfg whereClause
+      case kvRes of
+        Right kvRows -> do
+          let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
+          if not (null matchedKVLiveRows)
+            then pure $ Right matchedKVLiveRows
+            else do
+              let findAllQueryUpdated = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+              dbRes <- runQuery dbConf findAllQueryUpdated
+              case dbRes of
+                Right dbRows -> pure $ Right $ getUniqueDBRes dbRows (snd kvRows)
+                Left err     -> return $ Left $ MDBError err
+        Left err -> return $ Left err
+    else do
+      let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+      mapLeft MDBError <$> runQuery dbConf findAllQuery
 
 redisFindAll :: forall be table beM m.
   ( HasCallStack,
@@ -977,7 +1013,7 @@ deleteObjectRedis :: forall table be beM m.
     -- Show (table Identity), --debugging purpose
     L.MonadFlow m
   ) =>
-  MeshConfig -> Bool -> Where be table -> (table Identity) -> m (MeshResult (table Identity))
+  MeshConfig -> Bool -> Where be table -> table Identity -> m (MeshResult (table Identity))
 deleteObjectRedis meshCfg addPrimaryKeyToWhereClause whereClause obj = do
   time <- fromIntegral <$> L.getCurrentDateInMillis
   let pKeyText  = getLookupKeyByPKey obj
