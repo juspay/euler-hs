@@ -25,10 +25,9 @@ module EulerHS.KVConnector.Flow
   )
  where
 
-import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.CachedSqlDBQuery (runQuery)
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, Source(..), Operation(..))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, Source(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDeleteQuery, getDbDeleteCommandJson, getDbUpdateCommandJson, getDbUpdateCommandJsonWithPrimaryKey, getDbDeleteCommandJsonWithPrimaryKey, DBCommandVersion(..))
 import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache, pushToInMemConfigStream, fetchRowFromDBAndAlterImc)
 import           EulerHS.KVConnector.InMemConfig.Types (ImcStreamCommand(..))
@@ -37,14 +36,14 @@ import           EulerHS.KVDB.Types (KVDBReply)
 import           Control.Arrow ((>>>))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
-import           Data.List (span, maximum)
+import           Data.List (maximum)
 import           Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
-import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, sqlDelete, modelTableName, Model, Where, Clause(..), Set(..), OrderBy(..))
+import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, sqlDelete, Model, Where, Clause(..), Set(..), OrderBy(..))
 import           EulerHS.CachedSqlDBQuery (findAllSql, createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning(..))
 import qualified Database.Beam as B
 import qualified Database.Beam.Postgres as BP
@@ -52,7 +51,6 @@ import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
 import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
-import           System.CPUTime (getCPUTime)
 import qualified Data.Maybe as DMaybe
 
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
