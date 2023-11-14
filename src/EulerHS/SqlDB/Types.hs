@@ -61,7 +61,6 @@ import qualified Database.Beam.Sqlite.Connection as SQLite
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PGS
 import qualified Database.SQLite.Simple as SQLite
-import qualified Data.Text as T
 import           EulerHS.Prelude
 import           EulerHS.SqlDB.MySQL (MySQLConfig (..), createMySQLConn)
 import           EulerHS.SqlDB.Postgres (PostgresConfig (..),
@@ -127,7 +126,7 @@ class BeamRunner beM where
 
 instance BeamRunner BS.SqliteM where
   getBeamDebugRunner (NativeSQLiteConn conn) beM =
-    \logger -> SQLite.runBeamSqliteDebug (logger) conn beM
+    \logger -> SQLite.runBeamSqliteDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
 
 instance BeamRunner BP.Pg where

@@ -162,7 +162,7 @@ getPKeyAndValueList table = do
       keyValueList = sortBy (compare `on` fst) k
       rowObject = A.toJSON table
   case rowObject of
-    A.Object hm -> DL.foldl' (\acc x -> [go hm x] <> acc) [] keyValueList
+    A.Object hm -> DL.foldl' (\acc x -> (go hm x) : acc) [] keyValueList
     _ -> error "Cannot work on row that isn't an Object"
 
   where 
