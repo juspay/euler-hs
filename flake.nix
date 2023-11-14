@@ -1,10 +1,8 @@
 {
   inputs = {
-    # Common is used only to get the GHC 8.10 package set.
-    # common.url = "github:nammayatri/common";
+    # Common is used only to get the GHC 9.2 package set.
+    common.url = "github:nammayatri/common";
 
-    # Replace the url with upstream after the GHC 9.2 changes get merged there.
-    common.url = "github:arjunkathuria/common/Mobility-GHC927-rebased-04";
     nixpkgs.follows = "common/nixpkgs";
     flake-parts.follows = "common/flake-parts";
     haskell-flake.follows = "common/haskell-flake";
