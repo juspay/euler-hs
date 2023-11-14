@@ -98,7 +98,7 @@ instance OptionEntity KVMetricCfg KVMetricHandler
 ---------------------------------------------------------
 
 isKVMetricEnabled :: Bool
-isKVMetricEnabled = fromMaybe True $ readMaybe =<< Conf.lookupEnvT "KV_METRIC_ENABLED"
+isKVMetricEnabled = fromMaybe True $ readMaybe =<< Conf.lookupEnvT @String "KV_METRIC_ENABLED"
 
 ---------------------------------------------------------
 

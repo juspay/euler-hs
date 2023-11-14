@@ -21,6 +21,7 @@ common common-lang
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints
     -fplugin=RecordDotPreprocessor
+    "-Wwarn=ambiguous-fields"
 
   build-depends:
     , base                     

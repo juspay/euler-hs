@@ -11,7 +11,7 @@ import           Database.Beam.Sqlite (SqliteM)
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import qualified EulerHS.Language as L
-import           EulerHS.Prelude hiding (getOption)
+import           EulerHS.Prelude
 import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Runtime as R
 import           EulerHS.Types (_isAsync, _logFilePath, _logToFile,
@@ -66,19 +66,19 @@ td3 = TimeOfDay
   }
 
 data MemberT f = Member
-    { memberId      :: B.C f Int
+    { memberId      :: B.C f Int64
     , surName       :: B.C f Text
     , firstName     :: B.C f Text
     , address       :: B.C f Text
-    , zipCode       :: B.C f Int
+    , zipCode       :: B.C f Int64
     , telephone     :: B.C f Text
-    , recommendedBy :: B.C f (Maybe Int)
+    , recommendedBy :: B.C f (Maybe Int64)
     , joinDate      :: B.C f LocalTime
     } deriving (Generic, B.Beamable)
 
 instance B.Table MemberT where
   data PrimaryKey MemberT f =
-    MemberId (B.C f Int) deriving (Generic, B.Beamable)
+    MemberId (B.C f Int64) deriving (Generic, B.Beamable)
   primaryKey = MemberId . memberId
 
 type Member = MemberT Identity
@@ -111,7 +111,7 @@ membersEMod = B.modifyTableFields
     }
 
 data FacilityT f = Facility
-    { facilityId         :: B.C f Int
+    { facilityId         :: B.C f Int64
     , name               :: B.C f Text
     , memberCost         :: B.C f Double
     , guestCost          :: B.C f Double
@@ -121,7 +121,7 @@ data FacilityT f = Facility
 
 instance B.Table FacilityT where
   data PrimaryKey FacilityT f =
-    FacrId (B.C f Int) deriving (Generic, B.Beamable)
+    FacrId (B.C f Int64) deriving (Generic, B.Beamable)
   primaryKey = FacrId . facilityId
 
 type Facility = FacilityT Identity

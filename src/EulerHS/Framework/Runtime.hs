@@ -85,10 +85,10 @@ data ConfigEntry =   ConfigEntry
 deriving instance Show ConfigEntry
 
 configCacheSize :: Integer
-configCacheSize = 
+configCacheSize =
   let
     mbSize :: Maybe Integer
-    mbSize = readMaybe =<< lookupEnvT "CONFIG_CACHE_SIZE"
+    mbSize = readMaybe =<< lookupEnvT @String "CONFIG_CACHE_SIZE"
 
   in fromMaybe 4096 mbSize
 

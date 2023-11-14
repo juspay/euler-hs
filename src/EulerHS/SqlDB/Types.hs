@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE DeriveDataTypeable     #-}
+{-# OPTIONS_GHC -Wwarn=incomplete-patterns #-}
 
 module EulerHS.SqlDB.Types
   (
@@ -130,7 +131,7 @@ instance BeamRunner BS.SqliteM where
 
 instance BeamRunner BP.Pg where
   getBeamDebugRunner (NativePGConn conn) beM =
-    \logger -> BP.runBeamPostgresDebug logger conn beM
+    \logger -> BP.runBeamPostgresDebug (logger) conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a Postgres connection"
 
 instance BeamRunner BM.MySQLM where
@@ -153,7 +154,6 @@ data NativeSqlPool
   = NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
   | NativeMySQLPool (DP.Pool MySQL.MySQLConn)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
-  deriving stock (Show)
 
 -- | Representation of native DB connections that we use in implementation.
 data NativeSqlConn

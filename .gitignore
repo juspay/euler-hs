@@ -48,3 +48,7 @@ init/id_rsa
 *~
 
 *.yaml.lock
+
+# Nix
+result
+.direnv

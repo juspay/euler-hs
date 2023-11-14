@@ -196,7 +196,7 @@ fruit :: Plant
 fruit = Fruit $ Apple 12 (Just "green")
 
 enc_plant :: BSL.ByteString
-enc_plant = "{\"tag\":\"Fruit\",\"contents\":{\"weight\":12,\"colour\":\"green\"}}"
+enc_plant = "{\"contents\":{\"colour\":\"green\",\"weight\":12},\"tag\":\"Fruit\"}"
 
 data PlantUnTag
   = FruitU Apple
@@ -212,7 +212,7 @@ berry :: PlantUnTag
 berry = BerryU $ Strawberry 2 (Just "red")
 
 enc_plantUntag :: BSL.ByteString
-enc_plantUntag = "{\"weight\":2,\"colour\":\"red\"}"
+enc_plantUntag = "{\"colour\":\"red\",\"weight\":2}"
 
 -------------------------------------------------------------------------------
 -- stripLensPrefixOptions
@@ -229,7 +229,7 @@ cat :: Cat
 cat = Cat "Kita" (Just "grey")
 
 enc_cat :: BSL.ByteString
-enc_cat = "{\"cName\":\"Kita\",\"cColour\":\"grey\"}"
+enc_cat = "{\"cColour\":\"grey\",\"cName\":\"Kita\"}"
 
 data Dog = Dog
   { cName :: Text
@@ -280,7 +280,7 @@ cow :: Cow
 cow = Cow "Mu" (Just "white-nd-black")
 
 enc_cow :: BSL.ByteString
-enc_cow = "{\"cName\":\"Mu\",\"cColour\":\"white-nd-black\"}"
+enc_cow = "{\"cColour\":\"white-nd-black\",\"cName\":\"Mu\"}"
 
 data Wolf = Wolf
   { cName :: Text
