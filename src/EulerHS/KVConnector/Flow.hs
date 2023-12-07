@@ -1031,7 +1031,7 @@ deleteObjectRedis meshCfg addPrimaryKeyToWhereClause whereClause obj = do
   case kvDbRes of
     Left err -> return . Left $ MRedisError err
     Right _  -> do
-      pushToInMemConfigStream meshCfg ImcDelete obj 
+      when meshCfg.memcacheEnabled $ pushToInMemConfigStream meshCfg ImcDelete obj 
       return $ Right obj
 
 reCacheDBRows :: forall table m.
