@@ -14,7 +14,7 @@ module EulerHS.KVDB.Language
   -- ** Methods
   -- *** Regular
   -- **** For simple values
-  , set, get, incr, setex, setOpts
+  , set, get, incr, setex, setOpts, mget
   -- **** For list values
   , lpush, lrange
   -- **** For hash values
@@ -107,6 +107,8 @@ data KeyValueF f next where
   SetEx   :: KVDBKey -> KVDBDuration -> KVDBValue -> (f KVDBStatus -> next) -> KeyValueF f next
   SetOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> (f Bool -> next) -> KeyValueF f next
   Get     :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
+  MGet    :: [KVDBKey] -> (f [Maybe ByteString] -> next) -> KeyValueF f next
+  MSet    :: [(KVDBKey,KVDBValue)] -> (f KVDBStatus -> next) -> KeyValueF f next
   Exists  :: KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Del     :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
   Expire  :: KVDBKey -> KVDBDuration -> (f Bool -> next) -> KeyValueF f next
@@ -143,6 +145,8 @@ instance Functor (KeyValueF f) where
   fmap f (SetEx k ex value next)         = SetEx k ex value (f . next)
   fmap f (SetOpts k value ttl cond next) = SetOpts k value ttl cond (f . next)
   fmap f (Get k next)                    = Get k (f . next)
+  fmap f (MGet k next)                   = MGet k (f . next)
+  fmap f (MSet k next)                   = MSet k (f . next)
   fmap f (Exists k next)                 = Exists k (f . next)
   fmap f (Del ks next)                   = Del ks (f . next)
   fmap f (Expire k sec next)             = Expire k sec (f . next)
@@ -254,6 +258,10 @@ saddTx setKey setmem = liftFC $ SAdd setKey setmem id
 set :: KVDBKey -> KVDBValue -> KVDB KVDBStatus
 set key value = ExceptT $ liftFC $ KV $ Set key value id
 
+-- | Set the value of keys
+mset :: [(KVDBKey, KVDBValue)] -> KVDB KVDBStatus
+mset keys = ExceptT $ liftFC $ KV $ MSet keys id
+
 -- | Set the value and ttl of a key.
 setex :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDB KVDBStatus
 setex key ex value = ExceptT $ liftFC $ KV $ SetEx key ex value id
@@ -264,6 +272,10 @@ setOpts key value ttl cond = ExceptT $ liftFC $ KV $ SetOpts key value ttl cond 
 -- | Get the value of a key
 get :: KVDBKey -> KVDB (Maybe ByteString)
 get key = ExceptT $ liftFC $ KV $ Get key id
+
+-- | Get the value of keys
+mget :: [KVDBKey] -> KVDB [Maybe ByteString]
+mget keys = ExceptT $ liftFC $ KV $ MGet keys id
 
 -- | Determine if a key exists
 exists :: KVDBKey -> KVDB Bool

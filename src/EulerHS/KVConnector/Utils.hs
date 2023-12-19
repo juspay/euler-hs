@@ -41,7 +41,13 @@ import           Data.Either.Extra (mapRight, mapLeft)
 import  EulerHS.KVConnector.Encoding ()
 import           Safe (atMay)
 import qualified EulerHS.Logger.Types as Log
-
+import           EulerHS.KVDB.Types (KVDBReply)
+import qualified Data.ByteString.Char8 as BSC
+import qualified Data.HashMap.Internal as HMI
+import           Debug.Trace as T
+import           Data.Time.Clock(getCurrentTime, NominalDiffTime, UTCTime, diffUTCTime)
+import qualified System.Environment as SE
+import qualified Control.Monad as CM
 
 jsonKeyValueUpdates ::
   forall be table. (HasCallStack, Model be table, MeshMeta be table)
@@ -97,20 +103,83 @@ getDataFromRedisForPKey meshCfg pKey = do
       return $ Right Nothing
     Left e -> return $ Left $ MRedisError e
 
+groupKeysBySlot :: [ByteString] -> [[ByteString]]
+groupKeysBySlot keys' =
+  let slotKeyPairs = map (\key -> (L.keyToSlot key, key)) keys'
+  in map ((map snd)) (DL.groupBy (\(slot1, _) (slot2, _) -> slot1 == slot2) slotKeyPairs)
+
+
+getDataFromPKeysRedisHelper :: forall table m. (
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    Serialize.Serialize (table Identity),
+    L.MonadFlow m) => Either KVDBReply [(Maybe ByteString)] -> m (MeshResult ([table Identity], [table Identity]))
+getDataFromPKeysRedisHelper (Right []) = pure $ Right ([], [])
+getDataFromPKeysRedisHelper (Right (Nothing : xs)) = getDataFromPKeysRedisHelper (Right xs)
+getDataFromPKeysRedisHelper (Right (Just r : xs)) = do
+  let (decodeResult, isLive) = decodeToField $ BSL.fromChunks [r]
+  case decodeResult of
+    Right decodeRes -> do
+      remainingPKeysResult <- getDataFromPKeysRedisHelper (Right xs)
+      case remainingPKeysResult of
+        Right remainingResult -> do
+          if isLive
+            then return $ Right (decodeRes ++ (fst remainingResult), snd remainingResult)
+            else return $ Right (fst remainingResult, decodeRes ++ (snd remainingResult))
+        Left err -> return $ Left err
+    Left e -> return $ Left e
+getDataFromPKeysRedisHelper (Left e) = return $ Left $ MRedisError e
+
+latency :: UTCTime -> IO NominalDiffTime
+latency time = do
+  currentTime <- getCurrentTime 
+  return $ diffUTCTime currentTime time
+
+getDataFromPKeysHelper :: forall table m. (
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    Serialize.Serialize (table Identity),
+    L.MonadFlow m, MonadIO m) => MeshConfig -> [[ByteString]] -> Bool -> m (MeshResult ([table Identity], [table Identity]))
+getDataFromPKeysHelper _ [] latencyLogging = pure $ Right ([], [])
+getDataFromPKeysHelper meshCfg (pKey : pKeys) latencyLogging = do
+  currentTime <- liftIO getCurrentTime
+  res <- L.runKVDB meshCfg.kvRedis $ L.mget (fromString . T.unpack . decodeUtf8 <$> pKey)
+  result <- liftIO $ latency currentTime
+  CM.when latencyLogging $ L.logInfo ("Latency for redisFindAll"::Text)  (show result)
+  result <- getDataFromPKeysRedisHelper res
+  case result of
+    Left e -> return $ Left e
+    Right (a, b) -> do
+      remainingPKeysResult <- getDataFromPKeysHelper meshCfg pKeys latencyLogging
+      case remainingPKeysResult of
+        Right remainingResult -> do
+          return $ Right (a ++ (fst remainingResult), b ++ (snd remainingResult))
+        Left err -> return $ Left err
+
+getDataFromPKeysRedis' :: forall table m. (
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    Serialize.Serialize (table Identity),
+    L.MonadFlow m, MonadIO m) => MeshConfig -> Bool -> [ByteString] -> m (MeshResult ([table Identity], [table Identity]))
+getDataFromPKeysRedis' _ _ []  = pure $ Right ([], [])
+getDataFromPKeysRedis' meshCfg latencyLogging pKeys = do  
+  let groupedKeys = groupKeysBySlot pKeys
+  getDataFromPKeysHelper meshCfg groupedKeys latencyLogging
+
 getDataFromPKeysRedis :: forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
     L.MonadFlow m) => MeshConfig -> [ByteString] -> m (MeshResult ([table Identity], [table Identity]))
 getDataFromPKeysRedis _ [] = pure $ Right ([], [])
-getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
+getDataFromPKeysRedis meshCfg (pKey : pKeys)  = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
   case res of
     Right (Just r) -> do
       let (decodeResult, isLive) = decodeToField $ BSL.fromChunks [r]
       case decodeResult of
         Right decodeRes -> do
-          remainingPKeysResult <- getDataFromPKeysRedis meshCfg pKeys
+          remainingPKeysResult <- getDataFromPKeysRedis meshCfg pKeys 
           case remainingPKeysResult of
             Right remainingResult -> do
               if isLive
@@ -119,7 +188,7 @@ getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
             Left err -> return $ Left err
         Left e -> return $ Left e
     Right Nothing -> do
-      getDataFromPKeysRedis meshCfg pKeys
+      getDataFromPKeysRedis meshCfg pKeys 
     Left e -> return $ Left $ MRedisError e
 
 ------------- KEY UTILS ------------------
