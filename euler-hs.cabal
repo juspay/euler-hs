@@ -77,6 +77,7 @@ library
     EulerHS.Logger.Types
     EulerHS.KVConnector.InMemConfig.Types
     EulerHS.KVConnector.Utils
+    EulerHS.KVConnector.Helper.Utils
     EulerHS.Extra.Regex
     EulerHS.Masking
     EulerHS.Extra.URLSanitization

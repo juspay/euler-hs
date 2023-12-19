@@ -18,7 +18,7 @@ import qualified Data.ByteString.Lazy as BSL
 import           Text.Casing (quietSnake)
 import qualified Data.HashMap.Strict as HM
 import           Data.List (findIndices, intersect)
-import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict as SMap
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified EulerHS.KVConnector.Encoding as Encoding
@@ -48,6 +48,9 @@ import           Debug.Trace as T
 import           Data.Time.Clock(getCurrentTime, NominalDiffTime, UTCTime, diffUTCTime)
 import qualified System.Environment as SE
 import qualified Control.Monad as CM
+import qualified Database.Redis as DR
+import qualified Data.Maybe as DM
+import           EulerHS.KVConnector.Helper.Utils
 
 jsonKeyValueUpdates ::
   forall be table. (HasCallStack, Model be table, MeshMeta be table)
@@ -74,7 +77,7 @@ updateModel :: forall be table.
   ) =>
   table Identity -> [(Text, A.Value)] -> MeshResult A.Value
 updateModel model updVals = do
-  let updVals' = map (\(key,v) -> (AKey.fromText key, Map.findWithDefault id key (valueMapper @be @table) v)) updVals
+  let updVals' = map (\(key,v) -> (AKey.fromText key, SMap.findWithDefault id key (valueMapper @be @table) v)) updVals
   case A.toJSON model of
     A.Object o -> Right (A.Object $ foldr (uncurry AKM.insert) o updVals')
     o -> Left $ MUpdateFailed
@@ -86,7 +89,7 @@ getDataFromRedisForPKey ::forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, Bool, table Identity))) 
+    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, Bool, table Identity)))
 getDataFromRedisForPKey meshCfg pKey = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ pKey)
   case res of
@@ -103,10 +106,27 @@ getDataFromRedisForPKey meshCfg pKey = do
       return $ Right Nothing
     Left e -> return $ Left $ MRedisError e
 
+
+slotMap :: SMap.Map DR.HashSlot [ByteString]
+slotMap = SMap.empty
+
 groupKeysBySlot :: [ByteString] -> [[ByteString]]
 groupKeysBySlot keys' =
-  let slotKeyPairs = map (\key -> (L.keyToSlot key, key)) keys'
-  in map ((map snd)) (DL.groupBy (\(slot1, _) (slot2, _) -> slot1 == slot2) slotKeyPairs)
+  let slotMap' = slotMap
+      result = foldl' (\acc key -> insertKeyIntoMap key acc) slotMap' keys'
+  in 
+    SMap.elems result
+  where
+    insertKeyIntoMap key acc =
+      let slot = L.keyToSlot key  -- Assuming L contains the keyToSlot function
+          slotMap'' = if keyExists slot acc
+                        then insertedMap slot (key : valuesForKey slot acc) acc
+                        else insertedMap slot [key] acc
+      in slotMap''
+      where
+        keyExists = SMap.member
+        valuesForKey slot acc = DM.fromJust $ SMap.lookup slot acc 
+        insertedMap  = SMap.insert 
 
 
 getDataFromPKeysRedisHelper :: forall table m. (
@@ -130,10 +150,6 @@ getDataFromPKeysRedisHelper (Right (Just r : xs)) = do
     Left e -> return $ Left e
 getDataFromPKeysRedisHelper (Left e) = return $ Left $ MRedisError e
 
-latency :: UTCTime -> IO NominalDiffTime
-latency time = do
-  currentTime <- getCurrentTime 
-  return $ diffUTCTime currentTime time
 
 getDataFromPKeysHelper :: forall table m. (
     KVConnector (table Identity),
@@ -153,7 +169,7 @@ getDataFromPKeysHelper meshCfg (pKey : pKeys) latencyLogging = do
       remainingPKeysResult <- getDataFromPKeysHelper meshCfg pKeys latencyLogging
       case remainingPKeysResult of
         Right remainingResult -> do
-          return $ Right (a ++ (fst remainingResult), b ++ (snd remainingResult))
+          return $ Right (a ++ fst remainingResult, b ++ snd remainingResult)
         Left err -> return $ Left err
 
 getDataFromPKeysRedis' :: forall table m. (
@@ -162,7 +178,7 @@ getDataFromPKeysRedis' :: forall table m. (
     Serialize.Serialize (table Identity),
     L.MonadFlow m, MonadIO m) => MeshConfig -> Bool -> [ByteString] -> m (MeshResult ([table Identity], [table Identity]))
 getDataFromPKeysRedis' _ _ []  = pure $ Right ([], [])
-getDataFromPKeysRedis' meshCfg latencyLogging pKeys = do  
+getDataFromPKeysRedis' meshCfg latencyLogging pKeys = do
   let groupedKeys = groupKeysBySlot pKeys
   getDataFromPKeysHelper meshCfg groupedKeys latencyLogging
 
@@ -170,16 +186,19 @@ getDataFromPKeysRedis :: forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> [ByteString] -> m (MeshResult ([table Identity], [table Identity]))
-getDataFromPKeysRedis _ [] = pure $ Right ([], [])
-getDataFromPKeysRedis meshCfg (pKey : pKeys)  = do
+    L.MonadFlow m, MonadIO m) => MeshConfig -> Bool -> [ByteString] -> m (MeshResult ([table Identity], [table Identity]))
+getDataFromPKeysRedis _ _ [] = pure $ Right ([], [])
+getDataFromPKeysRedis meshCfg latencyLogging (pKey : pKeys)  = do
+  currentTime <- liftIO getCurrentTime
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
+  result <- liftIO $ latency currentTime
+  CM.when latencyLogging $ L.logInfo ("Latency for redisFindAll"::Text)  (show result)
   case res of
     Right (Just r) -> do
       let (decodeResult, isLive) = decodeToField $ BSL.fromChunks [r]
       case decodeResult of
         Right decodeRes -> do
-          remainingPKeysResult <- getDataFromPKeysRedis meshCfg pKeys 
+          remainingPKeysResult <- getDataFromPKeysRedis meshCfg latencyLogging pKeys
           case remainingPKeysResult of
             Right remainingResult -> do
               if isLive
@@ -188,7 +207,7 @@ getDataFromPKeysRedis meshCfg (pKey : pKeys)  = do
             Left err -> return $ Left err
         Left e -> return $ Left e
     Right Nothing -> do
-      getDataFromPKeysRedis meshCfg pKeys 
+      getDataFromPKeysRedis meshCfg latencyLogging pKeys
     Left e -> return $ Left $ MRedisError e
 
 ------------- KEY UTILS ------------------
@@ -234,7 +253,7 @@ getPKeyAndValueList table = do
     A.Object hm -> DL.foldl' (\acc x -> (go hm x) : acc) [] keyValueList
     _ -> error "Cannot work on row that isn't an Object"
 
-  where 
+  where
     go hm x = case AKM.lookup (AKey.fromText $ fst x) hm of
       Just val -> (fst x, val)
       Nothing  -> error $ "Cannot find " <> (fst x) <> " field in the row"
@@ -261,7 +280,7 @@ getAutoIncId meshCfg tName = do
     Right id_ -> return $ Right id_
     Left e    -> return $ Left $ MRedisError e
 
-unsafeJSONSetAutoIncId :: forall table m. (ToJSON (table Identity), FromJSON (table Identity), KVConnector (table Identity), L.MonadFlow m) => 
+unsafeJSONSetAutoIncId :: forall table m. (ToJSON (table Identity), FromJSON (table Identity), KVConnector (table Identity), L.MonadFlow m) =>
   MeshConfig -> table Identity -> m (MeshResult (table Identity))
 unsafeJSONSetAutoIncId meshCfg obj = do
   let (PKey p) = primaryKey obj
@@ -308,7 +327,7 @@ removeDeleteResults :: KVConnector (table Identity) => [table Identity] -> [tabl
 removeDeleteResults delRows rows = do
   let delPKeys = map getLookupKeyByPKey delRows
       nonDelRows = filter (\r -> getLookupKeyByPKey r `notElem` delPKeys) rows
-  nonDelRows 
+  nonDelRows
 
 getLatencyInMicroSeconds :: Integer -> Integer
 getLatencyInMicroSeconds execTime = execTime `div` 1000000
@@ -409,14 +428,14 @@ meshModelTableEntity =
   in appEndo modification $ B.DatabaseEntity $ B.dbEntityAuto (modelTableName @table)
 
 toPSJSON :: forall be table. MeshMeta be table => (Text, A.Value) -> (Text, A.Value)
-toPSJSON (k, v) = (k, Map.findWithDefault id k (valueMapper @be @table) v)
+toPSJSON (k, v) = (k, SMap.findWithDefault id k (valueMapper @be @table) v)
 
 decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> (MeshResult [a], Bool)
 decodeToField val =
   let decodeRes = Encoding.decodeLiveOrDead val
     in  case decodeRes of
-          (isLive, byteString) -> 
-            let decodedMeshResult = 
+          (isLive, byteString) ->
+            let decodedMeshResult =
                         let (h, v) = BSL.splitAt 4 byteString
                           in case h of
                                 "CBOR" -> case Cereal.decodeLazy v of
@@ -430,7 +449,7 @@ decodeToField val =
                                   case A.eitherDecode v of
                                     Right r' -> decodeField @a r'
                                     Left e   -> Left $ MDecodingError $ T.pack e
-                                _      -> 
+                                _      ->
                                   case A.eitherDecode val of
                                     Right r' -> decodeField @a r'
                                     Left e   -> Left $ MDecodingError $ T.pack e
@@ -472,7 +491,7 @@ getFieldsAndValuesFromClause dt = \case
       A.Array l  -> T.pack $ show l
       A.Object o -> T.pack $ show o
       A.Bool b -> T.pack $ show b
-      A.Null -> T.pack "" 
+      A.Null -> T.pack ""
 
 getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
 getPrimaryKeyFromFieldsAndValues _ _ _ [] = pure $ Right []
@@ -491,7 +510,7 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap fieldsAndValues = 
             Right r -> pure $ Right $ Just r
             Left e -> pure $ Left $ MRedisError e
         _ -> pure $ Right Nothing
-      
+
     intersectList (x : y : xs) = intersectList (intersect x y : xs)
     intersectList (x : [])     = x
     intersectList []           = []
@@ -509,14 +528,14 @@ nonEmptySubsequences []      =  []
 nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
   where f ys r = ys : (x : ys) : r
 
-whereClauseDiffCheck :: forall be table m. 
+whereClauseDiffCheck :: forall be table m.
   ( L.MonadFlow m
   , Model be table
   , MeshMeta be table
   , KVConnector (table Identity)
   ) =>
   Where be table -> m (Maybe [[Text]])
-whereClauseDiffCheck whereClause = 
+whereClauseDiffCheck whereClause =
   if isWhereClauseDiffCheckEnabled then do
     let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
         andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
@@ -557,7 +576,7 @@ isLogsEnabledForModel modelName = do
 logAndIncrementKVMetric :: (L.MonadFlow m, ToJSON a) => Bool -> Text -> Operation -> MeshResult a -> Int -> Text -> Integer -> Source -> Maybe [[Text]] -> m ()
 logAndIncrementKVMetric shouldLogData action operation res latency model cpuLatency source mbDiffCheckRes = do
   apiTag <- L.getOptionLocal ApiTag
-  mid    <- L.getOptionLocal MerchantID 
+  mid    <- L.getOptionLocal MerchantID
   let shouldLogData_  = isLogsEnabledForModel model && shouldLogData
   let dblog = DBLogEntry {
       _log_type     = "DB"
@@ -574,7 +593,7 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
     , _merchant_id  = mid
     , _whereDiffCheckRes = mbDiffCheckRes
     }
-  if action == "FIND" then 
+  if action == "FIND" then
     when shouldLogFindDBCallLogs $ logDb Log.Debug ("DB" :: Text) source action model latency dblog
     else logDb Log.Info ("DB" :: Text) source action model latency dblog
   when (source == KV) $ L.setLoggerContext "PROCESSED_THROUGH_KV" "True"
