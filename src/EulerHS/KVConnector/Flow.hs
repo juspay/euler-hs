@@ -771,7 +771,8 @@ findOneFromDB dbConf whereClause = do
   let findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
   mapLeft MDBError <$> runQuery dbConf findQuery
 
-
+compareCols :: (Ord value) => (table Identity -> value) -> Bool -> table Identity -> table Identity -> Ordering
+compareCols col isAsc r1 r2 = if isAsc then compare (col r1) (col r2) else compare (col r2) (col r1)
 
 findAllWithOptionsHelper :: forall be table beM m.
   ( HasCallStack,
@@ -843,8 +844,6 @@ findAllWithOptionsHelper dbConf meshCfg whereClause orderBy mbLimit mbOffset = d
                                   Desc col -> compareCols (fromColumnar' . col . columnize) False
                             (drop shift . sortBy cmp) rows
         maybe resWithoutLimit (`take` resWithoutLimit) mbLimit
-      compareCols :: (Ord value) => (table Identity -> value) -> Bool -> table Identity -> table Identity -> Ordering
-      compareCols col isAsc r1 r2 = if isAsc then compare (col r1) (col r2) else compare (col r2) (col r1)
 
       calculateLeftFelledRedisEntries :: [table Identity] -> [table Identity] -> Int
       calculateLeftFelledRedisEntries kvRows dbRows = do
@@ -947,8 +946,9 @@ findAllWithKVAndConditionalDBInternal :: forall be table beM m.
   DBConfig beM ->
   MeshConfig ->
   Where be table ->
+  Maybe (OrderBy table) ->
   m (MeshResult [table Identity])
-findAllWithKVAndConditionalDBInternal dbConf meshCfg whereClause  = do
+findAllWithKVAndConditionalDBInternal dbConf meshCfg whereClause orderBy = do
   let isDisabled = meshCfg.kvHardKilled
   if not isDisabled 
     then do
@@ -957,16 +957,29 @@ findAllWithKVAndConditionalDBInternal dbConf meshCfg whereClause  = do
         Right kvRows -> do
           let matchedKVLiveRows = findAllMatching whereClause (fst kvRows)
           if not (null matchedKVLiveRows)
-            then pure $ Right matchedKVLiveRows
+            then do
+              case orderBy of
+                  Nothing -> pure $ Right matchedKVLiveRows
+                  Just res -> do
+                    let cmp = case res of 
+                          Asc col -> compareCols (fromColumnar' . col . columnize) True
+                          Desc col -> compareCols (fromColumnar' . col . columnize) False
+                    pure $ Right (sortBy cmp matchedKVLiveRows)
             else do
-              let findAllQueryUpdated = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+              let findAllQueryUpdated = DB.findRows (sqlSelect' 
+                      ! #where_ whereClause
+                      ! #orderBy (if isJust orderBy then Just [DMaybe.fromJust orderBy] else Nothing)
+                      ! defaults)
               dbRes <- runQuery dbConf findAllQueryUpdated
               case dbRes of
                 Right dbRows -> pure $ Right $ getUniqueDBRes dbRows (snd kvRows)
                 Left err     -> return $ Left $ MDBError err
         Left err -> return $ Left err
     else do
-      let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+      let findAllQuery = DB.findRows (sqlSelect' 
+              ! #where_ whereClause
+              ! #orderBy (if isJust orderBy then Just [DMaybe.fromJust orderBy] else Nothing)
+              ! defaults)
       mapLeft MDBError <$> runQuery dbConf findAllQuery
 
 redisFindAll :: forall be table beM m.
