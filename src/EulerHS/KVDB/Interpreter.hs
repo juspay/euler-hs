@@ -45,6 +45,13 @@ interpretKeyValueF runRedis (L.Get k next) =
   fmap next $
     runRedis $ R.get k
 
+interpretKeyValueF runRedis (L.MGet k next) =
+  fmap next $
+    runRedis $ R.mget k
+
+interpretKeyValueF runRedis (L.MSet k next) =
+  next . second fromRdStatus <$> runRedis (R.mset k)
+
 interpretKeyValueF runRedis (L.Exists k next) =
   fmap next $
     runRedis $ R.exists k
@@ -207,6 +214,12 @@ interpretKeyValueTxF (L.SetOpts k v ttl cond next) =
 
 interpretKeyValueTxF (L.Get k next) =
   next <$> R.get k
+
+interpretKeyValueTxF (L.MGet k next) =
+  next <$> R.mget k
+
+interpretKeyValueTxF (L.MSet k next) =
+  next . fmap fromRdStatus <$> R.mset k
 
 interpretKeyValueTxF (L.Exists k next) =
   next <$> R.exists k
