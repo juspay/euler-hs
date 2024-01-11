@@ -233,6 +233,8 @@ data FlowMethod (next :: Type) where
 
 -- Needed due to lack of impredicative instantiation (for stuff like Mask). -
 -- Koz
+
+-- Define a functor instance for the `FlowMethod` type.
 instance Functor FlowMethod where
   {-# INLINEABLE fmap #-}
   fmap f = \case
@@ -305,27 +307,31 @@ type PMessageCallback
     -> ByteString  -- ^ Message payload
     -> Flow ()
 
--- | Fork a unit-returning flow.
---
--- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
---
--- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
--- All the rules applied to forked threads in Haskell can be applied to forked flows.
---
--- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
--- There is no possibility to kill a thread at the moment.
---
--- Thread safe, exception free.
---
--- > myFlow1 = do
--- >   logInfoT "myflow1" "logFromMyFlow1"
--- >   someAction
--- >
--- > myFlow2 = do
--- >   _ <- runIO someAction
--- >   forkFlow "myFlow1 fork" myFlow1
--- >   pure ()
---
+{-|
+  Fork a unit-returning flow.
+
+  __Note__: To fork a flow that yields a value, use 'forkFlow\'' instead.
+
+  __Warning__: With forked flows, race conditions and dead/live blocking become possible.
+  All the rules applied to forked threads in Haskell can be applied to forked flows.
+
+  Generally, the method is thread-safe and exception-free. It doesn't bookkeep the threads, and there is no possibility to kill a thread at the moment.
+
+  Example:
+
+  > myFlow1 = do
+  >   logInfoT "myflow1" "logFromMyFlow1"
+  >   someAction
+  >
+  > myFlow2 = do
+  >   _ <- runIO someAction
+  >   forkFlow "myFlow1 fork" myFlow1
+  >   pure ()
+
+  This function runs the given 'Flow ()' in a forked thread, and logs an error if the flow throws an exception.
+
+  @since 1.0.0
+-}
 forkFlow :: HasCallStack => T.Description -> Flow () -> Flow ()
 forkFlow description flow = void $ forkFlow' description $ do
   eitherResult <- runSafeFlow flow
@@ -333,17 +339,26 @@ forkFlow description flow = void $ forkFlow' description $ do
     Left msg -> logError ("forkFlow" :: Text) msg
     Right _  -> pure ()
 
--- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
--- to reap results from the flow being forked.
---
--- > myFlow1 = do
--- >   logInfoT "myflow1" "logFromMyFlow1"
--- >   pure 10
--- >
--- > myFlow2 = do
--- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
--- >   await Nothing awaitable
---
+{-|
+  Same as 'forkFlow', but returns an 'Awaitable'.
+
+  __Thread Safe__: Yes
+  __Exception Free__: No (May propagate exceptions from the forked flow)
+
+  This function is similar to 'forkFlow', but instead of immediately forking and running the 'Flow a', it returns an 'Awaitable' that can be used to await the result of the forked flow.
+
+  Usage example:
+
+  > myFlow1 = do
+  >   logInfoT "myflow1" "logFromMyFlow1"
+  >   pure 10
+  >
+  > myFlow2 = do
+  >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
+  >   await Nothing awaitable
+
+  This example creates two flows: 'myFlow1' and 'myFlow2'. 'myFlow2' forks 'myFlow1' using 'forkFlow'' and then waits for its result using 'await'.
+-}
 forkFlow' :: HasCallStack =>
   T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
@@ -354,39 +369,38 @@ forkFlow' description flow = do
       Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
     liftFC $ Fork description flowGUID flow id
 
--- | Method for calling external HTTP APIs using the facilities of servant-client.
--- Allows to specify what manager should be used. If no manager found,
--- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
---
--- Thread safe, exception free.
---
--- Alias for callServantAPI.
---
--- | Takes remote url, servant client for this endpoint
--- and returns either client error or result.
---
--- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
--- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- >
--- > data Book = Book { author :: String, name :: String }
--- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- >
--- > type API = "user" :> Get '[JSON] User
--- >       :<|> "book" :> Get '[JSON] Book
--- >
--- > api :: HasCallStack => Proxy API
--- > api = Proxy
--- >
--- > getUser :: HasCallStack => EulerClient User
--- > getBook :: HasCallStack => EulerClient Book
--- > (getUser :<|> getBook) = client api
--- >
--- > url = BaseUrl Http "localhost" port ""
--- >
--- >
--- > myFlow = do
--- >   book <- callAPI url getBook
--- >   user <- callAPI url getUser
+{-|
+  Method for calling external HTTP APIs using servant-client.
+
+  __Thread Safe__: Yes
+  __Exception Free__: Yes
+  
+  Allows to specify what manager should be used. If no manager found
+  Alias for 'callServantAPI'. Takes a 'ManagerSelector' (if any), the base URL, and the servant client for the specified endpoint. Returns either a 'ClientError' or the API result.
+
+  Example usage:
+
+  > data User = User { firstName :: String, lastName :: String, userGUID :: String }
+  >   deriving (Generic, Show, Eq, ToJSON, FromJSON)
+  >
+  > data Book = Book { author :: String, name :: String }
+  >   deriving (Generic, Show, Eq, ToJSON, FromJSON)
+  >
+  > type API = "user" :> Get '[JSON] User :<|> "book" :> Get '[JSON] Book
+  >
+  > api :: HasCallStack => Proxy API
+  > api = Proxy
+  >
+  > getUser :: HasCallStack => EulerClient User
+  > getBook :: HasCallStack => EulerClient Book
+  > (getUser :<|> getBook) = client api
+  >
+  > url = BaseUrl Http "localhost" port ""
+  >
+  > myFlow = do
+  >   book <- callAPI' Nothing url getBook
+  >   user <- callAPI' Nothing url getUser
+-}
 callAPI' :: (HasCallStack, MonadFlow m) =>
   Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI' = callServantAPI
@@ -396,98 +410,158 @@ callAPI :: (HasCallStack, MonadFlow m) =>
   BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI = callServantAPI Nothing
 
--- | Log message with Info level.
---
--- Thread safe.
+{-|
+Log message with Info level.
+
+Thread safe.
+
+Sample usage:
+
+> myFlow :: (HasCallStack, MonadFlow m) => m ()
+> myFlow = do
+>   logInfo ("myFlow" :: Text) "Starting myFlow..."
+>   -- ... rest of the flow ...
+-}
 logInfo :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
--- | Log message with Error level.
---
--- Thread safe.
+
+{-|
+Log message with Error level.
+
+Thread safe.
+
+Sample usage:
+
+> anotherFlow :: (HasCallStack, MonadFlow m) => m ()
+> anotherFlow = do
+>   result <- someAction
+>   case result of
+>     Left err -> logError ("anotherFlow" :: Text) $ "Error: " <> err
+>     Right val -> logInfo ("anotherFlow" :: Text) $ "Success! Value: " <> show val
+-}
 logError :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logError tag msg = do
   logCallStack
   evalLogger' $ logMessage' T.Error tag msg
 
--- | Log message with Debug level.
---
--- Thread safe.
+{-|
+Log message with Debug level.
+
+Thread safe.
+
+Sample usage:
+
+> debugFlow :: (HasCallStack, MonadFlow m) => m ()
+> debugFlow = do
+>   logDebug ("debugFlow" :: Text) "Entering debugFlow..."
+>   -- ... debug-related actions ...
+-}
 logDebug :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 
--- | Log message with Warning level.
---
--- Thread safe.
+{-|
+Log message with Warning level.
+
+Thread safe.
+
+Sample usage:
+
+> warningFlow :: (HasCallStack, MonadFlow m) => m ()
+> warningFlow = do
+>   logWarning ("warningFlow" :: Text) "This is a warning!"
+>   -- ... rest of the flow ...
+-}
 logWarning :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
--- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
--- because we have to collect it in recordings for ART system.
---
--- Warning. This method is dangerous and should be used wisely.
---
--- > myFlow = do
--- >   content <- runIO $ readFromFile file
--- >   logDebugT "content id" $ extractContentId content
--- >   pure content
+{-|
+Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
+because we have to collect it in recordings for ART system.
+
+Warning: This method is dangerous and should be used wisely.
+
+Sample usage:
+
+> myFlow :: (HasCallStack, MonadFlow m) => m ()
+> myFlow = do
+>   content <- runIO $ readFromFile file
+>   logDebugT "content id" $ extractContentId content
+>   pure content
+-}
 runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
 
--- | The same as callHTTPWithCert but does not need certificate data.
---
--- Thread safe, exception free.
---
--- Takes remote url and returns either client error or result.
---
--- > myFlow = do
--- >   book <- callHTTP url
+{-|
+The same as 'callHTTPWithCert' but does not need certificate data.
+
+Thread safe, exception free.
+
+Takes remote URL and returns either client error or result.
+
+Sample usage:
+
+> myFlow :: (HasCallStack, MonadFlow m) => m ()
+> myFlow = do
+>   result <- callHTTP url
+>   case result of
+>     Left err -> logErrorT "HTTP Error" err
+>     Right response -> logInfoT "HTTP Response" $ "Received response: " <> show response
+-}
 callHTTP :: (HasCallStack, MonadFlow m) =>
   T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
 callHTTP url = callHTTPWithCert url Nothing
 
--- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
--- `ReaderT` and other monad transformers.
---
--- Omit `forkFlow` as this will break some monads like StateT (you can lift this manually if you
--- know what you're doing)
+{-|
+MonadFlow implementation for the 'Flow' Monad. This allows the implementation of MonadFlow for
+'ReaderT' and other monad transformers.
+
+Omit 'forkFlow' as this will break some monads like 'StateT' (you can lift this manually if you
+know what you're doing).
+
+Sample usage:
+
+> instance MonadFlow MyMonad where
+>   -- Implementation of MonadFlow methods for MyMonad
+-}
 class (MonadMask m) => MonadFlow m where
 
-  -- | Method for calling external HTTP APIs using the facilities of servant-client.
-  -- Allows to specify what manager should be used. If no manager found,
-  -- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
-  --
-  -- Thread safe, exception free.
-  --
-  -- Takes remote url, servant client for this endpoint
-  -- and returns either client error or result.
-  --
-  -- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
-  -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
-  -- >
-  -- > data Book = Book { author :: String, name :: String }
-  -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
-  -- >
-  -- > type API = "user" :> Get '[JSON] User
-  -- >       :<|> "book" :> Get '[JSON] Book
-  -- >
-  -- > api :: HasCallStack => Proxy API
-  -- > api = Proxy
-  -- >
-  -- > getUser :: HasCallStack => EulerClient User
-  -- > getBook :: HasCallStack => EulerClient Book
-  -- > (getUser :<|> getBook) = client api
-  -- >
-  -- > url = BaseUrl Http "localhost" port ""
-  -- >
-  -- >
-  -- > myFlow = do
-  -- >   book <- callServantAPI url getBook
-  -- >   user <- callServantAPI url getUser
+  {-|
+    Method for calling external HTTP APIs using servant-client.
+
+    __Thread Safe__: Yes
+    __Exception Free__: Yes
+    
+    Allows to specify what manager should be used. If no manager found
+    Alias for 'callServantAPI'. Takes a 'ManagerSelector' (if any), the base URL, and the servant client for the specified endpoint. Returns either a 'ClientError' or the API result.
+
+    Example usage:
+
+    > data User = User { firstName :: String, lastName :: String, userGUID :: String }
+    >   deriving (Generic, Show, Eq, ToJSON, FromJSON)
+    >
+    > data Book = Book { author :: String, name :: String }
+    >   deriving (Generic, Show, Eq, ToJSON, FromJSON)
+    >
+    > type API = "user" :> Get '[JSON] User :<|> "book" :> Get '[JSON] Book
+    >
+    > api :: HasCallStack => Proxy API
+    > api = Proxy
+    >
+    > getUser :: HasCallStack => EulerClient User
+    > getBook :: HasCallStack => EulerClient Book
+    > (getUser :<|> getBook) = client api
+    >
+    > url = BaseUrl Http "localhost" port ""
+    >
+    > myFlow = do
+    >   book <- callAPI' Nothing url getBook
+    >   user <- callAPI' Nothing url getUser
+  -}
   callServantAPI
     :: HasCallStack
     => Maybe T.ManagerSelector     -- ^ name of the connection manager to be used
@@ -495,14 +569,18 @@ class (MonadMask m) => MonadFlow m where
     -> T.EulerClient a             -- ^ servant client 'EulerClient'
     -> m (Either ClientError a) -- ^ result
 
-  -- | Method for calling external HTTP APIs without bothering with types.
-  --
-  -- Thread safe, exception free.
-  --
-  -- Takes remote url, optional certificate data and returns either client error or result.
-  --
-  -- > myFlow = do
-  -- >   book <- callHTTPWithCert url cert
+  {-|
+    Method for calling external HTTP APIs without bothering with types.
+
+    Thread safe, exception free.
+
+    Takes remote URL, optional certificate data, and returns either a client error or result.
+
+    Sample usage:
+
+    > myFlow = do
+    >   book <- callHTTPWithCert url cert
+  -}
   callHTTPWithCert
     :: HasCallStack
     => T.HTTPRequest                        -- ^ remote url 'Text'
@@ -523,49 +601,90 @@ class (MonadMask m) => MonadFlow m where
   -- >   pure content
   runIO' :: HasCallStack => Text -> IO a -> m a
 
-  -- | Gets stored a typed option by a typed key.
-  --
-  -- Thread safe, exception free.
+  {-|
+    Gets stored a typed option by a typed key.
+
+    Thread safe, exception free.
+
+    Sample usage:
+
+    >  data MerchantIdKey = MerchantIdKey
+    > 
+    >  instance OptionEntity MerchantIdKey Text
+    > 
+    >  myFlow = do
+    >    _ <- setOption MerchantIdKey "abc1234567"
+    >    mKey <- getOption MerchantIdKey
+    >    runIO $ putTextLn mKey
+  -}
   getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m (Maybe v)
 
-  -- Sets a typed option using a typed key (a mutable destructive operation)
-  --
-  -- Be aware that it's possible to overflow the runtime with options
-  -- created uncontrollably.
-  --
-  -- Also please keep in mind the options are runtime-bound and if you have
-  -- several API methods working with the same option key, you'll get a race.
-  --
-  -- Thread safe, exception free.
-  --
-  -- >  data MerchantIdKey = MerchantIdKey
-  -- >
-  -- >  instance OptionEntity MerchantIdKey Text
-  -- >
-  -- >  myFlow = do
-  -- >    _ <- setOption MerchantIdKey "abc1234567"
-  -- >    mKey <- getOption MerchantIdKey
-  -- >    runIO $ putTextLn mKey
-  -- >    delOption MerchantIdKey
+  {-|
+    Sets a typed option using a typed key (a mutable destructive operation).
+
+    Be aware that it's possible to overflow the runtime with options
+    created uncontrollably.
+
+    Also, please keep in mind the options are runtime-bound and if you have
+    several API methods working with the same option key, you'll get a race.
+
+    Thread safe, exception free.
+
+    Sample usage:
+
+    >  data MerchantIdKey = MerchantIdKey
+    > 
+    >  instance OptionEntity MerchantIdKey Text
+    > 
+    >  myFlow = do
+    >    _ <- setOption MerchantIdKey "abc1234567"
+    >    mKey <- getOption MerchantIdKey
+    >    runIO $ putTextLn mKey
+  -}
   setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> m ()
 
+  {-|
+    Deletes a typed option using a typed key.
+    Sample usage:
+
+    >  data MerchantIdKey = MerchantIdKey
+    > 
+    >  instance OptionEntity MerchantIdKey Text
+    > 
+    >  myFlow = do
+    >    _ <- setOption MerchantIdKey "abc1234567"
+    >    mKey <- getOption MerchantIdKey
+    >    runIO $ putTextLn mKey
+    >    delOption MerchantIdKey
+  -}
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m ()
 
-  -- | Generate a version 4 UUIDs as specified in RFC 4122
-  -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
-  --
-  -- Thread safe, exception free.
+  {-|
+    Generate a version 4 UUID as specified in RFC 4122
+    e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
+
+    Thread safe, exception free.
+
+    Sample usage:
+
+    > myFlow = do
+    >   guid <- generateGUID
+  -}
   generateGUID :: HasCallStack => m Text
 
-  -- | Runs system command and returns its output.
-  --
-  -- Warning. This method is dangerous and should be used wisely.
-  --
-  -- > myFlow = do
-  -- >   currentDir <- runSysCmd "pwd"
-  -- >   logInfoT "currentDir" $ toText currentDir
-  -- >   ...
+  {-|
+    Runs a system command and returns its output.
+
+    Warning. This method is dangerous and should be used wisely.
+
+    Sample usage:
+
+    > myFlow = do
+    >   currentDir <- runSysCmd "pwd"
+    >   logInfoT "Current Directory" $ toText currentDir
+    >   ...
+  -}
   runSysCmd :: HasCallStack => String -> m String
 
   -- | Inits an SQL connection using a config.
@@ -716,21 +835,28 @@ class (MonadMask m) => MonadFlow m where
   throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
   throwExceptionWithoutCallStack = throwM
 
-  -- | Run a flow safely with catching all the exceptions from it.
-  -- Returns either a result or the exception turned into a text message.
-  --
-  -- This includes ususal instances of the Exception type class,
-  -- `error` exception and custom user exceptions thrown by the `throwException` method.
-  --
-  -- Thread safe, exception free.
-  --
-  -- > myFlow = runSafeFlow $ throwException err403 {errBody = reason}
-  --
-  -- > myFlow = do
-  -- >   eitherContent <- runSafeFlow $ runIO $ readFromFile file
-  -- >   case eitherContent of
-  -- >     Left err -> ...
-  -- >     Right content -> ...
+  {-|
+  Run a flow safely, catching all exceptions.
+
+  Returns either a result or the exception turned into a text message.
+
+  This includes usual instances of the 'Exception' type class, the `error` exception, and custom user exceptions thrown by the 'throwException' method.
+
+  __Thread Safe__: Yes
+  __Exception Free__: Yes
+
+  Examples:
+
+  > myFlow = runSafeFlow $ throwException err403 {errBody = reason}
+
+  > myFlow = do
+  >   eitherContent <- runSafeFlow $ runIO $ readFromFile file
+  >   case eitherContent of
+  >     Left err -> ...
+  >     Right content -> ...
+
+  @since 1.0.0
+-}
   runSafeFlow :: HasCallStack => Flow a -> m (Either Text a)
 
   -- | Execute kvdb actions.
@@ -791,6 +917,14 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+{-|
+Implements the 'MonadFlow' type class for the 'Flow' monad. 
+This allows various operations to be lifted into the 'Flow' monad, providing a layer of abstraction over different
+underlying monads that implement 'MonadFlow'.
+
+The instances include 'ReaderT', 'StateT', 'WriterT', 'ExceptT', and 'RWST' transformers, making it flexible to use
+within different monad stacks.
+-}
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id

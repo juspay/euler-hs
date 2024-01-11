@@ -66,7 +66,12 @@ type ByteKey = ByteString
 type ByteField = ByteString
 type ByteValue = ByteString
 
--- | Get existing SQL connection, or init a new connection.
+{-
+  Get an existing SQL connection or initialize a new connection.
+
+  Takes a 'DBConfig' and attempts to get an existing connection. If the connection
+  does not exist, it initializes a new connection and returns the result.
+-}
 getOrInitSqlConn :: (HasCallStack, L.MonadFlow m) =>
   T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
 getOrInitSqlConn cfg = do
@@ -75,7 +80,12 @@ getOrInitSqlConn cfg = do
     Left (T.DBError T.ConnectionDoesNotExist _) -> L.initSqlDBConnection cfg
     res                                         -> pure res
 
--- | Get existing Redis connection, or init a new connection.
+{-
+  Get an existing Redis connection or initialize a new connection.
+
+  Takes a 'KVDBConfig' and attempts to get an existing connection. If the connection
+  does not exist, it initializes a new connection and returns the result.
+-}
 getOrInitKVDBConn :: (HasCallStack, L.MonadFlow m) => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
 getOrInitKVDBConn cfg = do
   conn <- L.getKVDBConnection cfg
@@ -91,15 +101,24 @@ getOrInitKVDBConn cfg = do
 -- Key is a text string.
 --
 -- mtl version of the original function.
+{-
+  Set a key's time to live in seconds.
+  Key is a text string.
+
+  This function is the mtl version.
+
+  NOTE : "mtl version" suggests that the given function is designed to work within a monad stack that includes the MonadFlow typeclass. The MonadFlow typeclass abstracts over some common flow-related operations, such as logging, error handling, and resource management. Therefore, a function described as the "mtl version" is adapted to work within this specific monadic context.
+-}
 rExpire :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> t -> m (Either T.KVDBReply Bool)
 rExpire cName k t = rExpireB cName (TE.encodeUtf8 k) t
 
--- | Set a key's time to live in seconds.
--- Key is a byte string.
---
--- mtl version of the original function.
--- Additionally, logs the error may happen.
+{-
+  Set a key's time to live in seconds.
+  Key is a byte string.
+
+  This function is the mtl version of the original function 'rExpireB'.
+-}
 rExpireB :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> ByteKey -> t -> m (Either T.KVDBReply Bool)
 rExpireB cName k t = do
@@ -478,10 +497,50 @@ rSismember cName k v = do
       L.logError @Text "Redis sismember" $ show err
       pure res
 
+{-|
+  Modifies the logger context in the 'FlowRuntime' using the provided function 'updateLCtx'.
+  The updated 'FlowRuntime' is used to run the given 'L.Flow a'.
+
+  This function is particularly useful when you need to change specific fields in the log context
+  for a specific flow without affecting the global logging configuration.
+
+  === Example:
+
+  > -- Update a specific field in the log context for a flow
+  > withLoggerContext (\lc -> lc { T.someField = newValue }) someFlow
+
+  === Parameters:
+
+  * @updateLCtx@: Function to update the log context based on the current log context.
+
+  * @L.Flow a@: The flow to run with the modified logger context.
+
+  === Returns:
+
+  The result of the flow in the modified context.
+-}
 withLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogContext) -> L.Flow a -> m a
 withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
 
+{-|
+  Updates the logger context in a 'FlowRuntime' using the provided function 'updateLCtx'.
+  It applies the function to the logger context in the provided 'FlowRuntime' and returns
+  a new 'FlowRuntime' with the updated logger context.
 
+  This function is generally used internally by 'withLoggerContext', and you may not need
+  to call it directly in most cases.
+
+  === Parameters:
+
+  * @updateLCtx@: Function to update the log context based on the current log context.
+
+  * @FlowRuntime@: Original 'FlowRuntime' with the logger context to be updated.
+
+  === Returns:
+
+  'FlowRuntime' with the updated logger context.
+
+-}
 updateLoggerContext :: HasCallStack => (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
 updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
   where

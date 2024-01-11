@@ -181,6 +181,24 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
+{-|
+Interprets the 'CallServantAPI' constructor of the 'FlowMethod' within the context of a specific 'FlowRuntime'.
+
+Parameters:
+  - 'mbFlowGuid': Maybe a 'T.FlowGUID' representing the flow GUID.
+  - 'flowRt': The 'FlowRuntime' within which the 'CallServantAPI' action is being interpreted.
+  - 'mbMgrSel': Maybe a 'T.ManagerSelector' indicating the HTTP client manager to use.
+  - 'bUrl': The base URL for the API call.
+  - 'clientAct': The servant client action to execute.
+  - 'next': The continuation function to execute after interpreting the 'CallServantAPI' action.
+
+Returns:
+  - The result of the API call.
+
+Notes:
+  - This function is part of the interpreter for 'FlowMethod' actions.
+  - It handles servant API calls, client manager selection, and logging.
+-}
 interpretFlowMethod :: HasCallStack => Maybe T.FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ do
@@ -213,6 +231,23 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
+{-|
+Interprets the 'CallHTTP' constructor of the 'FlowMethod' within the context of a specific 'FlowRuntime'.
+
+Parameters:
+  - 'mbFlowGuid': Maybe a 'T.FlowGUID' representing the flow GUID.
+  - 'flowRt': The 'FlowRuntime' within which the 'CallHTTP' action is being interpreted.
+  - 'request': The 'T.HTTPRequest' to be executed.
+  - 'cert': Maybe a 'T.HTTPCert' representing the TLS certificate data.
+  - 'next': The continuation function to execute after interpreting the 'CallHTTP' action.
+
+Returns:
+  - The result of the HTTP call.
+
+Notes:
+  - This function is part of the interpreter for 'FlowMethod' actions.
+  - It handles HTTP calls, TLS certificate verification, and logging.
+-}
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
@@ -257,6 +292,13 @@ interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) 
 interpretFlowMethod _ _ (L.RunIO _ ioAct next) =
   next <$> ioAct
 
+{-
+Interpret 'GetOption', 'SetOption', and 'DelOption' operations in the Flow runtime.
+
+unsafeCoerce is a function in Haskell that allows you to change the type of a value without any type checking by the Haskell compiler. It essentially tells the compiler to treat the expression as if it had the desired type, even if the actual type doesn't match.
+
+NOTE : While unsafeCoerce can be powerful and flexible, it comes with significant risks. If misused, it can lead to runtime errors or undefined behavior. It bypasses the type system, so there's no guarantee that the resulting program will be type-safe. It's generally recommended to avoid using unsafeCoerce unless you have a deep understanding of its implications and are confident in its safe use.
+-}
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ do
     m <- readMVar _options
@@ -387,6 +429,24 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
       Just conn -> Right $ T.nativeToKVDB connTag conn
       Nothing   -> Left $ KVDBError KVDBConnectionDoesNotExist $ "Connection for " +|| connTag ||+ " does not exists."
 
+{-|
+Interprets the 'RunDB' constructor of the 'FlowMethod' within the context of a specific 'FlowRuntime'.
+
+Parameters:
+  - 'mbFlowGuid': Maybe a 'Text' representing the flow GUID.
+  - 'flowRt': The 'FlowRuntime' within which the 'RunDB' action is being interpreted.
+  - 'conn': The database connection information.
+  - 'sqlDbMethod': The SQL database method to execute.
+  - 'runInTransaction': A flag indicating whether the SQL operation should run within a transaction.
+  - 'next': The continuation function to execute after interpreting the 'RunDB' action.
+
+Returns:
+  - A tuple containing the result of the SQL operation and a list of raw SQL statements executed.
+
+Notes:
+  - This function is part of the interpreter for 'FlowMethod' actions.
+  - It handles transaction management, logging, and exception wrapping for SQL operations.
+-}
 interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
     let dbgLogger =
           if R.shouldFlowLogRawSql flowRt

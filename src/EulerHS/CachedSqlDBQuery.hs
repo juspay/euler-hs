@@ -42,6 +42,19 @@ cacheName = "eulerKVDB"
 -- | Create a new database entry with the given value.
 --   Cache the value if the DB insert succeeds.
 
+{-
+Typeclass for executing SQL queries with returning results.
+
+This typeclass defines a common interface for executing SQL queries that return results using different database backends.
+
+Methods:
+  - 'createReturning': Executes an SQL query to create a record and returns the created record.
+
+Instances:
+  - 'SqlReturning BM.MySQLM BM.MySQL': Instance for MySQL database backend.
+  - 'SqlReturning BP.Pg BP.Postgres': Instance for PostgreSQL database backend.
+  - 'SqlReturning BS.SqliteM BS.Sqlite': Instance for SQLite database backend.
+-}
 class SqlReturning (beM :: Type -> Type) (be :: Type) where
   createReturning ::
     forall (table :: (Type -> Type) -> Type)
@@ -70,7 +83,20 @@ instance SqlReturning BP.Pg BP.Postgres where
 instance SqlReturning BS.SqliteM BS.Sqlite where
   createReturning = create
 
+{-
+Executes an SQL query to create a record and handles caching.
 
+This function is a generic implementation of creating a record in the database. It utilizes the 'createSql' function
+to perform the SQL query and handles caching of the created record based on the provided cache key.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' specifying the database connection details.
+  - 'value': The record to be created in the database.
+  - 'mCacheKey': Optional cache key for caching the created record.
+
+Returns:
+  - An action in the 'L.MonadFlow' monad, producing a 'Either DBError (table Identity)' result.
+-}
 create ::
   forall (be :: Type)
          (beM :: Type -> Type)
@@ -86,10 +112,10 @@ create ::
     Show (table Identity),
     L.MonadFlow m
   ) =>
-  DBConfig beM ->
-  table Identity ->
-  Maybe Text ->
-  m (Either DBError (table Identity))
+  DBConfig beM ->                     -- Database configuration for the connection.
+  table Identity ->                   -- Record to be created in the database.
+  Maybe Text ->                       -- Optional cache key for caching the created record
+  m (Either DBError (table Identity)) -- Result in the 'L.MonadFlow' monad, containing either an error or the created record.
 create dbConf value mCacheKey = do
   res <- createSql dbConf value
   case res of
@@ -166,6 +192,18 @@ updateOneWoReturning dbConf (Just _) newVals whereClause = do
   return val
 updateOneWoReturning dbConf Nothing value whereClause = updateOneSqlWoReturning dbConf value whereClause
 
+{-|
+Update one or more elements in the database without returning any specific field.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'newVals': A list of 'Set' operations to modify the values in the target table. Each 'Set' operation represents a field update.
+  - 'whereClause': The 'Where' clause specifying the conditions for the update.
+
+Returns:
+  - 'Right ()' if the update is successful.
+  - 'Left' with 'DBError' if there's an error.
+-}
 updateOneSqlWoReturning ::
   forall m be beM table.
   ( HasCallStack,
@@ -197,6 +235,18 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
    --   return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 
+{-|
+Update one or more records in the database.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'newVals': A list of 'Set' operations to modify the values in the target table. Each 'Set' operation represents a field update.
+  - 'whereClause': The 'Where' clause specifying the conditions for the update.
+
+Returns:
+  - 'Right val' if the update is successful, where 'val' is the value of the field specified in the 'RETURNING' clause of the SQL query.
+  - 'Left' with 'DBError' if there's an error.
+-}
 updateOneSql ::
   forall m be beM table.
   ( HasCallStack,
@@ -234,8 +284,31 @@ updateExtended dbConf mKey upd = do
   maybe (pure ()) (`cacheWithKey` res) mKey
   pure res
 
--- | Find an element matching the query. Only uses the DB if the cache is empty.
---   Caches the result using the given key.
+{-|
+Finds an element matching the query. Only uses the DB if the cache is empty.
+Caches the result using the given key.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'cacheKey': Optional key to cache the result. If 'Just', attempts to retrieve the result from the cache.
+  - 'whereClause': The 'Where' clause specifying the conditions.
+
+Returns:
+  - 'Right (Just val)' if a record is found, where 'val' is the found record.
+  - 'Right Nothing' if no record is found.
+  - 'Left' with 'DBError' if there's an error.
+
+Example:
+> myFlow = do
+>   let dbConfig = -- your DBConfig here --
+>   let cacheKey = -- your cache key here --
+>   let conditions = -- your Where clause here --
+>   result <- findOne dbConfig cacheKey conditions
+>   case result of
+>     Right (Just foundRecord) -> logInfoT "Found record" $ show foundRecord
+>     Right Nothing -> logInfoT "No record found"
+>     Left error -> logErrorT "Query error" $ show error
+-}
 findOne ::
   ( HasCallStack,
     BeamRuntime be beM,
@@ -260,9 +333,21 @@ findOne dbConf (Just cacheKey) whereClause = do
       return mDBRes
 findOne dbConf Nothing whereClause = findOneSql dbConf whereClause
 
--- | Find all elements matching the query. Only uses the DB if the cache is empty.
---   Caches the result using the given key.
---   NOTE: Can't use the same key as findOne, updateOne or create since it's result is a list.
+{-|
+Finds all elements matching the query. Only uses the DB if the cache is empty.
+Caches the result using the given key.
+
+NOTE: Can't use the same key as 'findOne', 'updateOne', or 'create' since its result is a list.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'cacheKey': Optional key to cache the result. If 'Just', attempts to retrieve the result from the cache.
+  - 'whereClause': The 'Where' clause specifying the conditions.
+
+Returns:
+  - 'Right [val]' if records are found, where 'val' is a list of found records.
+  - 'Left' with 'DBError' if there's an error.
+-}
 findAll ::
   ( HasCallStack,
     BeamRuntime be beM,
@@ -317,6 +402,9 @@ findAllExtended dbConf mKey sel = case mKey of
       join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
 
 ------------ Helper functions ------------
+{-
+Executes an SQL query using a database connection.
+-}
 runQuery ::
   ( HasCallStack,
     BeamRuntime be beM, BeamRunner beM,
@@ -342,6 +430,18 @@ runQueryMySQL dbConf query = do
     Right c -> L.runTransaction c query
     Left  e -> return $ Left e
 
+{-
+Generates a SQL insertion query for creating a record in the database.
+
+This function takes a record of type 'table Identity' and generates a SQL insertion query using the 'B.insert' function.
+It utilizes the 'modelTableEntity' to define the target table for insertion.
+
+Parameters:
+  - 'value': The record to be inserted into the database.
+
+Returns:
+  - A 'B.SqlInsert be table' representing the SQL insertion query.
+-}
 sqlCreate ::
   forall be table.
   (HasCallStack, B.HasQBuilder be, Model be table) =>
@@ -349,6 +449,29 @@ sqlCreate ::
   B.SqlInsert be table
 sqlCreate value = B.insert modelTableEntity (mkExprWithDefault value)
 
+{-
+Runs a SQL insertion query using the provided 'DBConfig' and returns the inserted record.
+
+This function takes a 'DBConfig' for database configuration and a record of type 'table Identity' to be inserted.
+It executes the insertion query using 'DB.insertRowsReturningList' and 'sqlCreate', and returns the inserted record.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'value': The record to be inserted into the database.
+
+Returns:
+  - 'Right val' if the insertion is successful, where 'val' is the inserted record.
+  - 'Left (DBError UnexpectedResult message)' if the database returns an unexpected result.
+
+Example:
+> myFlow = do
+>   let dbConfig = -- your DBConfig here --
+>   let myRecord = -- your record here --
+>   result <- createSql dbConfig myRecord
+>   case result of
+>     Right insertedRecord -> logInfoT "Inserted record" $ show insertedRecord
+>     Left error -> logErrorT "Insert error" $ show error
+-}
 createSql ::
   forall m be beM table.
   ( HasCallStack,
@@ -396,6 +519,32 @@ createSqlMySQL dbConf value = do
       return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 
+{-|
+Runs a SQL query to find a single record in the database based on the provided 'DBConfig' and 'Where' clause.
+
+This function takes a 'DBConfig' for database configuration and a 'Where' clause specifying the conditions.
+It executes the query using 'DB.findRow' and 'sqlSelect', returning 'Right (Just val)' if a record is found,
+'Right Nothing' if no records match the conditions, and 'Left' if there's an error.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'whereClause': The 'Where' clause specifying the conditions.
+
+Returns:
+  - 'Right (Just val)' if a record is found, where 'val' is the found record.
+  - 'Right Nothing' if no records match the conditions.
+  - 'Left' with 'DBError' if there's an error.
+
+Example:
+> myFlow = do
+>   let dbConfig = -- your DBConfig here --
+>   let conditions = -- your Where clause here --
+>   result <- findOneSql dbConfig conditions
+>   case result of
+>     Right (Just foundRecord) -> logInfoT "Found record" $ show foundRecord
+>     Right Nothing -> logInfoT "No matching records found" ""
+>     Left error -> logErrorT "Query error" $ show error
+-}
 findOneSql ::
   ( HasCallStack,
     BeamRuntime be beM,
@@ -412,6 +561,31 @@ findOneSql ::
 findOneSql dbConf whereClause = runQuery dbConf findQuery
   where findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
 
+
+{-|
+Runs a SQL query to find all records in the database based on the provided 'Where' clause.
+
+This function takes a 'DBConfig' for database configuration and a 'Where' clause specifying the conditions.
+It executes the query using 'DB.findRows' and 'sqlSelect', returning 'Right [val]' if records are found,
+and 'Left' if there's an error.
+
+Parameters:
+  - 'dbConf': The 'DBConfig' representing the database connection.
+  - 'whereClause': The 'Where' clause specifying the conditions.
+
+Returns:
+  - 'Right [val]' if records are found, where 'val' is a list of found records.
+  - 'Left' with 'DBError' if there's an error.
+
+Example:
+> myFlow = do
+>   let dbConfig = -- your DBConfig here --
+>   let conditions = -- your Where clause here --
+>   result <- findAllSql dbConfig conditions
+>   case result of
+>     Right foundRecords -> logInfoT "Found records" $ show foundRecords
+>     Left error -> logErrorT "Query error" $ show error
+-}
 findAllSql ::
   ( HasCallStack,
     BeamRuntime be beM,

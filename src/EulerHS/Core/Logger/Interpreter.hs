@@ -18,7 +18,23 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Lazy as LBS
 
+{-|
+  Interpret a 'LoggerMethod' in the context of a given 'LoggerRuntime'.
+  This function is part of the logger interpretation logic and handles
+  the translation of 'LoggerMethod' instructions to actual logging actions.
 
+  === Parameters:
+
+  * @Maybe T.FlowGUID@: Optional flow GUID, representing the unique identifier of the flow.
+  
+  * @R.LoggerRuntime@: The logger runtime providing the necessary configuration for logging.
+
+  * @L.LoggerMethod a@: The logger method to be interpreted.
+
+  === Returns:
+
+  The result of interpreting the logger method.
+-}
 interpretLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
 
 -- Memory logger
@@ -56,5 +72,22 @@ interpretLogger
         msgNum    <- R.incLogCounter cntVar
         Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum logContext
 
+{-|
+  Run a 'Logger' using the provided 'LoggerRuntime'.
+  This function is used to execute the logger method and obtain the result.
+
+  === Parameters:
+
+  * @Maybe T.FlowGUID@: Optional flow GUID, representing the unique identifier of the flow.
+  
+  * @R.LoggerRuntime@: Logger runtime providing the configuration.
+  
+  * @L.Logger a@: The logger method to be executed.
+
+  === Returns:
+
+  The result of running the logger.
+
+-}
 runLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.Logger a -> IO a
 runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)

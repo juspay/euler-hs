@@ -89,6 +89,18 @@ data FlowRuntime = FlowRuntime
   }
 
 -- | Create default FlowRuntime.
+{-
+Creates a new 'FlowRuntime' given a 'CoreRuntime'.
+
+This function initializes various components within the 'FlowRuntime', such as HTTP client managers,
+options, key-value database connections, SQL database connections, and a pub-sub controller.
+
+Parameters:
+  - 'coreRt': The 'CoreRuntime' to associate with the new 'FlowRuntime'.
+
+Returns:
+  - An 'IO' action producing the initialized 'FlowRuntime'.
+-}
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
   defaultManagerVar <- newManager tlsManagerSettings
@@ -109,11 +121,28 @@ createFlowRuntime coreRt = do
     , _pubSubConnection         = Nothing
     }
 
+{-
+Creates a new 'FlowRuntime' given an optional logger runtime creator.
+
+This function allows flexibility in providing a custom logger runtime through the 'Maybe' type.
+If the logger runtime creator is 'Nothing', it uses the default logger runtime created by 'createVoidLoggerRuntime'.
+
+Parameters:
+  - 'loggerRtCreator': An optional action that creates a 'LoggerRuntime'.
+
+Returns:
+  - An 'IO' action producing the initialized 'FlowRuntime'.
+-}
 createFlowRuntime' :: Maybe (IO R.LoggerRuntime) -> IO FlowRuntime
 createFlowRuntime' Nothing = R.createVoidLoggerRuntime >>= R.createCoreRuntime >>= createFlowRuntime
 createFlowRuntime' (Just loggerRtCreator) = loggerRtCreator >>= R.createCoreRuntime >>= createFlowRuntime
 
--- | Clear resources in given 'FlowRuntime'
+{-
+Clears resources associated with a 'FlowRuntime'.
+
+This function releases and cleans up various resources within a 'FlowRuntime', such as options,
+key-value database connections, SQL database connections, and performs garbage collection for the HTTP manager.
+-}
 clearFlowRuntime :: FlowRuntime  -> IO ()
 clearFlowRuntime FlowRuntime{..} = do
   _ <- takeMVar _options
@@ -127,9 +156,21 @@ clearFlowRuntime FlowRuntime{..} = do
   -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
 
+{-
+Determines whether raw SQL logs should be enabled for the given 'FlowRuntime'.
+
+This function extracts the information from the underlying 'LoggerRuntime' in the 'FlowRuntime'.
+-}
 shouldFlowLogRawSql :: FlowRuntime -> Bool
 shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
 
+
+{-
+Disconnects and releases resources associated with a native SQL connection pool.
+
+This function destroys all resources in the provided 'T.NativeSqlPool', which may be specific to
+PostgreSQL, MySQL, SQLite, or a mocked connection pool.
+-}
 sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case
   T.NativePGPool connPool -> DP.destroyAllResources connPool
@@ -137,12 +178,62 @@ sqlDisconnect = \case
   T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
   T.NativeMockedPool -> pure ()
 
+{-
+Disconnects and releases resources associated with a native key-value database connection.
+
+This function disconnects the provided 'T.NativeKVDBConn', which may be a native KVDB connection or a mocked connection.
+
+Parameters:
+  - 'kvdbConn': The 'T.NativeKVDBConn' to be disconnected.
+
+Returns:
+  - An 'IO' action performing the disconnection.
+
+Usage Example:
+  @
+  redisConn <- RD.connect someRedisConfig
+  kvDisconnect (T.NativeKVDB redisConn)
+  @
+-}
 kvDisconnect :: T.NativeKVDBConn -> IO ()
 kvDisconnect = \case
   T.NativeKVDBMockedConn -> pure ()
   T.NativeKVDB conn -> RD.disconnect conn
 
--- | Run flow with given logger runtime creation function.
+{-
+withFlowRuntime: Run flow with given logger runtime creation function.
+
+This function provides a way to manage the lifecycle of a FlowRuntime by acquiring and releasing the necessary resources, with the flexibility to use a custom logger runtime creator if provided.
+
+Manages the lifecycle of a FlowRuntime, allowing the use of a custom logger runtime creator if provided.
+If the logger runtime creator is Nothing, default logger and core runtimes are created.
+The provided action function is executed with the FlowRuntime, ensuring proper cleanup.
+Usage:
+  
+  withFlowRuntime (Just (createLoggerRuntime formatter Nothing loggerCfg)) $ \flowRuntime -> do
+            -- Your code using the flowRuntime
+            -- Cleanup is handled automatically.
+  Example -
+  @
+  loggerConfig :: T.LoggerConfig
+  loggerConfig = T.LoggerConfig
+      { T._isAsync = False
+      , T._logLevel = T.Debug
+      , T._logFilePath = "/tmp/logs/myFlow.log"
+      , T._logToConsole = True
+      , T._logToFile = False
+      , T._maxQueueSize = 1000
+      , T._logRawSql = False
+      }
+
+  main :: IO ()
+  main = do
+    let mkLoggerRt = createLoggerRuntime defaultFlowFormatter Nothing loggerConfig
+
+    R.withFlowRuntime (Just mkLoggerRt) $ \flowRt ->
+      runEchoServer  "This is an easter egg." flowRt 8080
+  @
+-}
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a
 withFlowRuntime Nothing actionF =
   bracket R.createVoidLoggerRuntime R.clearLoggerRuntime $ \loggerRt ->
