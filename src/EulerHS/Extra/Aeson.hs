@@ -12,10 +12,11 @@ import           Data.Aeson (FromJSON, ToJSON, Options, defaultOptions, fieldLab
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
-import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LazyText
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Key as Key
 
 
 stripLensPrefixOptions :: Options
@@ -35,7 +36,7 @@ stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
 jsonSetField :: ToJSON a => Text -> a -> Aeson.Value -> Aeson.Value
 jsonSetField fieldName fieldValue obj = case obj of
   Aeson.Object fields ->
-    Aeson.Object $ HashMap.insert fieldName (Aeson.toJSON fieldValue) fields
+    Aeson.Object $ KeyMap.insert (Key.fromText fieldName) (Aeson.toJSON fieldValue) fields
   _ ->
     error $ "This should be an object... got " <> show obj
 

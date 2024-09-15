@@ -4,13 +4,14 @@ module EulerHS.Core.Masking where
 import qualified Data.Aeson as Aeson
 import           EulerHS.Prelude
 import qualified Network.HTTP.Types as HTTP
-import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (member)
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..), MaskKeyType (..))
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.List as List
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Key as Key
 
 shouldMaskKey :: Maybe Log.LogMaskingConfig -> Text -> Bool
 shouldMaskKey Nothing _ = False
@@ -50,7 +51,7 @@ maskQueryStrings shouldMask maskText queryStrings = maskQueryString <$> queryStr
 parseRequestResponseBody :: (Text -> Bool) -> Text -> Maybe ByteString -> ByteString -> Text
 parseRequestResponseBody shouldMask maskText mbContentType req
   | isContentTypeBlockedForLogging mbContentType = notSupportedPlaceHolder
-  | otherwise = 
+  | otherwise =
       case Aeson.eitherDecodeStrict req of
         Right value ->  decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText value
         Left _ -> decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText $ handleQueryString req
@@ -61,13 +62,21 @@ maskJSON shouldMask maskText (Aeson.Array r) =  Aeson.Array $ maskJSON shouldMas
 maskJSON _ _ value = value
 
 handleObject :: (Text -> Bool) -> Text -> Aeson.Object -> Aeson.Object
-handleObject shouldMask maskText = HashMap.mapWithKey maskingFn
+handleObject shouldMask maskText = KeyMap.mapWithKey maskingFn
   where
     maskingFn key value = maskJSON shouldMask maskText $ updatedValue key value
-    updatedValue key fn = if shouldMask key then Aeson.String maskText else fn
+      where
+        updatedValue key' val =
+          if shouldMask (Key.toText key')
+            then Aeson.String maskText
+            else val
 
 handleQueryString :: ByteString -> Aeson.Value
-handleQueryString strg = Aeson.Object . fmap (Aeson.String . fromMaybe "") . HashMap.fromList $ HTTP.parseQueryText strg
+handleQueryString strg =
+  let queryList = HTTP.parseQueryText strg
+      keyValueList = map (\(k, v) -> (Key.fromText k, Aeson.String $ fromMaybe "" v)) queryList
+      keyMap = KeyMap.fromList keyValueList
+  in Aeson.Object keyMap
 
 notSupportedPlaceHolder :: Text
 notSupportedPlaceHolder = "Logging Not Support For this content"
@@ -75,7 +84,7 @@ notSupportedPlaceHolder = "Logging Not Support For this content"
 isContentTypeBlockedForLogging :: Maybe ByteString -> Bool
 isContentTypeBlockedForLogging Nothing = False
 isContentTypeBlockedForLogging (Just contentType) =
-       Text.isInfixOf "html" (Text.toLower $ decodeUtf8 contentType) 
+       Text.isInfixOf "html" (Text.toLower $ decodeUtf8 contentType)
     || Text.isInfixOf "xml" (Text.toLower $ decodeUtf8 contentType)
 
 

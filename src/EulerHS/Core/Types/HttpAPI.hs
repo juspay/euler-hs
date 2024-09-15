@@ -47,8 +47,8 @@ import qualified EulerHS.Core.Types.BinaryString as T
 
 import qualified Data.ByteString                 as B
 import qualified Data.ByteString.Lazy            as LB
-import           Data.ByteString.Lazy.Builder    (Builder)
-import qualified Data.ByteString.Lazy.Builder    as Builder
+import           Data.ByteString.Builder    (Builder)
+import qualified Data.ByteString.Builder    as Builder
 import qualified Data.Char                       as Char
 import qualified Data.Map                        as Map
 import           Data.String.Conversions         (convertString)
