@@ -10,6 +10,7 @@ data FlowMockedValues' = FlowMockedValues'
   , mockedGetOption      :: [ByteString]
   , mockedGenerateGUID   :: [Text]
   , mockedRunSysCmd      :: [String]
+  , mockedDNS            :: [Maybe Text]
   } deriving (Generic, Typeable)
 
 

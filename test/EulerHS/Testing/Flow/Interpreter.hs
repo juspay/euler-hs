@@ -13,6 +13,7 @@ import           EulerHS.Testing.Types (FlowMockedValues)
 import           GHC.TypeLits (KnownSymbol, Symbol)
 import           Type.Reflection (typeRep)
 import           Unsafe.Coerce (unsafeCoerce)
+import qualified Data.Map as Map
 
 runFlowWithTestInterpreter :: FlowMockedValues -> FlowRuntime -> Flow a -> IO a
 runFlowWithTestInterpreter mv flowRt = foldFlow (interpretFlowMethod mv flowRt)
@@ -26,6 +27,13 @@ interpretFlowMethod mmv _ = \case
   L.SetOption _ _ next -> pure . next $ ()
   L.GenerateGUID next -> next <$> takeMockedVal @"mockedGenerateGUID" mmv
   L.RunSysCmd _ next -> next <$> takeMockedVal @"mockedRunSysCmd" mmv
+  L.ResolveDNS host next -> do
+    let dnsDatabase = Map.fromList
+            [ ("example.com", "93.184.216.34")
+            , ("google.com", "8.8.8.8")
+            , ("openai.com", "104.18.25.24")
+            ]
+    pure $ next (Map.lookup host dnsDatabase)
   _ -> error "not yet supported."
 
 takeMockedVal :: forall (f :: Symbol) (a :: Type) (r :: Type)

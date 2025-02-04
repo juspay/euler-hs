@@ -105,6 +105,12 @@ data FlowMethod (next :: Type) where
     -> (String -> next)
     -> FlowMethod next
 
+  ResolveDNS
+    :: HasCallStack
+    => Text
+    -> (Maybe Text -> next)
+    -> FlowMethod next
+
   Fork
     :: HasCallStack
     => T.Description
@@ -246,6 +252,7 @@ instance Functor FlowMethod where
     DelOption k cont -> DelOption k (f . cont)
     GenerateGUID cont -> GenerateGUID (f . cont)
     RunSysCmd cmd cont -> RunSysCmd cmd (f . cont)
+    ResolveDNS cmd cont -> ResolveDNS cmd (f . cont)
     Fork desc guid flow cont -> Fork desc guid flow (f . cont)
     Await time awaitable cont -> Await time awaitable (f . cont)
     ThrowException e cont -> ThrowException e (f . cont)
@@ -568,6 +575,8 @@ class (MonadMask m) => MonadFlow m where
   -- >   ...
   runSysCmd :: HasCallStack => String -> m String
 
+  resolveDNS :: HasCallStack => Text -> m (Maybe Text)
+
   -- | Inits an SQL connection using a config.
   --
   -- Returns an error (Left $ T.DBError T.ConnectionAlreadyExists msg)
@@ -813,6 +822,8 @@ instance MonadFlow Flow where
   generateGUID = liftFC $ GenerateGUID id
   {-# INLINEABLE runSysCmd #-}
   runSysCmd cmd = liftFC $ RunSysCmd cmd id
+  {-# INLINEABLE resolveDNS #-}
+  resolveDNS cmd = liftFC $ ResolveDNS cmd id
   {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
   {-# INLINEABLE deinitSqlDBConnection #-}
@@ -869,6 +880,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE resolveDNS #-}
+  resolveDNS = lift . resolveDNS
   {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
   {-# INLINEABLE deinitSqlDBConnection #-}
@@ -921,6 +934,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE resolveDNS #-}
+  resolveDNS = lift . resolveDNS
   {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
   {-# INLINEABLE deinitSqlDBConnection #-}
@@ -973,6 +988,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE resolveDNS #-}
+  resolveDNS = lift . resolveDNS
   {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
   {-# INLINEABLE deinitSqlDBConnection #-}
@@ -1025,6 +1042,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE resolveDNS #-}
+  resolveDNS = lift . resolveDNS
   {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
   {-# INLINEABLE deinitSqlDBConnection #-}
@@ -1077,6 +1096,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE resolveDNS #-}
+  resolveDNS = lift . resolveDNS
   {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
   {-# INLINEABLE deinitSqlDBConnection #-}

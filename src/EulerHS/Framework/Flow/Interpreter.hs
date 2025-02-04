@@ -39,6 +39,10 @@ import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
+import qualified Network.DNS.Resolver as DNS
+import qualified Network.DNS.Lookup as DNSLookup
+import qualified Data.ByteString.Char8 as BS
+
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect cfg = do
@@ -281,6 +285,32 @@ interpretFlowMethod _ _ (L.GenerateGUID next) = do
 
 interpretFlowMethod _ _ (L.RunSysCmd cmd next) =
   next <$> readCreateProcess (shell cmd) ""
+
+-- interpretFlowMethod _ _ (L.ResolveDNS host next) = do
+--   pure $ next (Map.lookup host dnsDatabase)
+--   where
+--     dnsDatabase :: Map.Map Text Text
+--     dnsDatabase = Map.fromList
+--         [ ("example.com", "93.184.216.34")
+--         , ("google.com", "8.8.8.8")
+--         , ("openai.com", "104.18.25.24")
+--         ]
+
+interpretFlowMethod _ _ (L.ResolveDNS host next) = do
+    resolvSeed <- DNS.makeResolvSeed DNS.defaultResolvConf
+    result <- DNS.withResolver resolvSeed $ \resolver ->
+        DNSLookup.lookupA resolver (BS.pack $ Text.unpack host)
+    let ipAddresses = case result of
+            Right ips -> Just (Text.pack $ show (head ips))
+            Left _    -> Map.lookup host dnsDatabase -- Fallback to hardcoded
+    pure $ next ipAddresses
+  where
+    dnsDatabase :: Map.Map Text Text
+    dnsDatabase = Map.fromList
+        [ ("example.com", "93.184.216.34")
+        , ("google.com", "8.8.8.8")
+        , ("openai.com", "104.18.25.24")
+        ]
 
 ----------------------------------------------------------------------
 interpretFlowMethod mbFlowGuid rt (L.Fork _desc _newFlowGUID flow next) = do

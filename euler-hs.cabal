@@ -148,6 +148,7 @@ library
     , uuid
     , validation
     , vector
+    , dns
 
   hs-source-dirs:  src
 
@@ -275,6 +276,7 @@ test-suite language
     , uuid
     , vector
     , warp
+    , dns 
 
   hs-source-dirs: test src
 
@@ -309,5 +311,6 @@ test-suite db
     , servant
     , servant-mock
     , time
+    , dns
 
   hs-source-dirs: testDB

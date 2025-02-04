@@ -59,6 +59,7 @@ library
     , transformers
     , validation
     , warp
+    , dns
   default-language: Haskell2010
 
 executable echo-server
@@ -98,4 +99,5 @@ executable echo-server
     , transformers
     , validation
     , warp
+    , dns
   default-language: Haskell2010

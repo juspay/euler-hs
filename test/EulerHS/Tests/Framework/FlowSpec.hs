@@ -364,6 +364,9 @@ localGUID = unsafeCoerce ("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" :: String)
 lhost :: ByteString
 lhost = "localhost"
 
+domainName :: Maybe Text
+domainName = Just "93.184.216.34"
+
 scenario1MockedValues :: FlowMockedValues'
 scenario1MockedValues = FlowMockedValues'
   { mockedCallServantAPI = [user]
@@ -371,6 +374,7 @@ scenario1MockedValues = FlowMockedValues'
   , mockedGetOption = [lhost]
   , mockedGenerateGUID = ["00000000-0000-0000-0000-000000000000"]
   , mockedRunSysCmd = ["Neo"]
+  , mockedDNS = [domainName]
   }
 
 ioActWithException :: IO Text
