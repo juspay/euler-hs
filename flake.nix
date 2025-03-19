@@ -1,17 +1,17 @@
 {
   inputs = {
-    common.url = "git+ssh://git@github.com/juspay/nix-common.git?ref=refactor/v2";
+    common.url = "github:juspay/nix-common/98c6ae8b431b1008fc41ff20fc1cb64037e4ef5b";
     # Euler packages
     euler-events-hs = {
-      url = "git+ssh://git@ssh.bitbucket.juspay.net/fram/euler-events-hs?ref=emergence-ghc928";
+      url = "github:juspay/euler-events-hs/f05689a61e7ee6428703f9a8272b55e56aba6b99";
       inputs.common.follows = "common";
     };
     euler-haskell-common = {
-      url = "git+ssh://git@ssh.bitbucket.juspay.net/jbiz/euler-haskell-common?ref=master";
+      url = "github:juspay/euler-haskell-common/79eb7b0802730acdeb42cb2baefb77a6eb34ce62";
       inputs.common.follows = "common";
     };
     haskell-sequelize = {
-      url = "git+ssh://git@ssh.bitbucket.juspay.net/exc/haskell-sequelize?ref=ghc928";
+      url = "github:juspay/haskell-sequelize/3a9fa29baee3040175efc0caa1a61cb91b6d1ad4";
       inputs.common.follows = "common";
     };
 
