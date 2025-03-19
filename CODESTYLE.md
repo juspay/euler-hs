@@ -64,7 +64,7 @@ someFunc = do
   pure (a + b)
 
 someFunc = do
-  let
+  let 
      a = calcA 10
      b = calcB 20
   pure (a + b)
@@ -140,6 +140,7 @@ data Person
       , bar :: !String  -- ^ Bar
       , baz :: !String  -- ^ Baz
       }
+
 ```
 
 ### List Declarations
@@ -374,6 +375,9 @@ data Record = Record
 ```
 
 ## Naming
+
+**N.B. This whole part is under construction. These regulations
+should be revisited and changed accordingly.**
 
 Use camel-case when naming values (`fooBar`) and data
 types (`FooBar`).

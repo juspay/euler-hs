@@ -1,0 +1,177 @@
+rules: 
+  - fn_rule_name: "ART KVDB Rule"
+    fn_name: "runKVDB"
+    arg_no: 0
+    fns_blocked_in_arg: []
+    types_blocked_in_arg: []
+    types_to_check_in_arg: []
+    fn_rule_fixes:
+      - "You might want to use some other wrapper function from `EulerHS.Extra.Redis` module."
+      - "For e.g. - rExists, rDel, rGet, rExpire, etc."
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules:
+      - "EulerHS.Extra.Redis"
+      - "EulerHS.Framework.Interpreter"
+      - "EulerHS.Framework.Language"
+      - "EulerHS.KVDB.Interpreter"
+      - "KVDB.KVDBSpec"
+
+  - fn_rule_name: "UUID Rule"
+    fn_name: "Data.UUID.V4.nextRandom"
+    arg_no: 0
+    fns_blocked_in_arg: []
+    types_blocked_in_arg: []
+    types_to_check_in_arg: []
+    fn_rule_fixes:
+      - "You might want to use some other function like `generateGUIDWithTag` or `generateRawGUID`"
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules:
+      - EulerHS.Framework.Interpreter
+
+  - fn_rule_name: "Env Rule"
+    fn_name: 
+      - "System.Environment.getEnv"
+      - "System.Environment.getEnvironment"
+      - "System.Environment.lookupEnv"
+      - "Juspay.Extra.Config.environmentVars"
+      - "Juspay.Extra.Config.lookupEnv"
+      - "Juspay.Extra.Config.lookupEnvS"
+      - "Juspay.Extra.Config.lookupEnvT"
+    arg_no: 0
+    fns_blocked_in_arg: []
+    types_blocked_in_arg: []
+    types_to_check_in_arg: []
+    fn_rule_fixes:
+      - "Use lookupEnv from Juspay.Extra.Env module and pass an object of type JuspayEnv to it."
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules: []
+
+  - fn_rule_name: "UUID Rule - 2"
+    fn_name: "generateGUID"
+    arg_no: 0
+    fns_blocked_in_arg: []
+    types_blocked_in_arg: []
+    types_to_check_in_arg: []
+    fn_rule_fixes:
+      - "You might want to use some other function like `generateGUIDWithTag` or `generateRawGUID`"
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules:
+      - EulerHS.Framework.Interpreter
+
+  - ruleName: "GeneralRuleTest"
+    conditions:
+      - fnName: "pack"
+        isQualified: false
+        argNo: 0
+        action: "Blocked"
+        argTypes: []
+        argFns: []
+        suggestedFixes: ["Remove `pack` function call from the error location."]
+    ruleInfo: 
+        fnName: "show"
+        isQualified: false
+        argNo: 1
+        action: "Blocked"
+        argTypes: ["Text", "String", "Char", "[Char]", "Maybe", "(,)", "[]"]
+        argFns: []
+        suggestedFixes: ["Remove `show` function call from the error location. If quotes are required, manually add them to the text.","You might want to use a convertor function like `Data.Text.pack`, `Data.Text.unpack`, `decodeUtf8`, `encodeUtf8`, etc."]
+  
+  # - fn_rule_name: "ShowRule"
+  #   fn_name: "show"
+  #   arg_no: 1
+  #   fns_blocked_in_arg: []
+  #   types_blocked_in_arg: ["Text", "String", "Char", "[Char]", "Maybe", "(,)", "[]"]
+  #   types_to_check_in_arg: ["Text", "String", "Char", "[Char]", "Maybe", "(,)", "[]"]
+  #   fn_rule_fixes: ["Remove `show` function call from the error location. If quotes are required, manually add them to the text.","You might want to use a convertor function like `Data.Text.pack`, `Data.Text.unpack`, `decodeUtf8`, `encodeUtf8`, etc."]
+  #   fn_rule_exceptions: []
+  #   fn_rule_ignore_modules: []
+
+  - db_rule_name: "DBRuleTest"
+    table_name: "TxnRiskCheck"
+    indexed_cols_names: 
+      - partitionKey
+      - and:
+        - txnId
+        - customerId
+    db_rule_fixes: ["You might want to include an indexed column in the `where` clause of the query."]
+    db_rule_exceptions: []
+
+  - fn_rule_name: "LogRule"
+    fn_name: 
+      - "logErrorT"
+      - "logErrorV"
+      - "logError"
+      - "logInfoT"
+      - "logInfoV"
+      - "logInfo"
+      - "logDebugT"
+      - "logDebugV"
+      - "logDebug"
+      - "logErrorWithCategoryT"
+      - "logErrorWithCategoryV"
+      - "logErrorWithCategory"
+      - "forkErrorLog"
+      - "forkInfoLog"
+      - "debugLog"
+      - "warnLog"
+    arg_no: 2
+    fns_blocked_in_arg: [["show", 1, ["EnumTypes", "Integer", "Double", "Float", "Int64", "Int", "Bool", "Number", "(,)", "[]", "Maybe"]], ["encode", 1, []], ["encodeJSON", 1, []]]
+    types_blocked_in_arg: []
+    types_to_check_in_arg: ["Text", "String", "Char", "[Char]", "Maybe", "(,)", "[]"]
+    fn_rule_fixes: ["Remove `show` function call from the error location and use `L.logErrorV @Text` or `L.logDebugV @Text` or `L.logInfoV @Text` function(s) imported from `EulerHS.Language` module.", "Make sure that there is `ToJSON` instance on the value we are logging.", "You may use tuples for combining string and objects. For e.g., (\"Failed to fetch object: \" :: Text, obj)"]
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules: []
+
+  - infinite_recursion_rule_name: Infinite Recursions
+    infinite_recursion_rule_fixes:
+      - "Remove the infinite recursion."
+      - "Add a base case check."
+      - "Pass the modified value to function arguments."
+    infinite_recursion_rule_ignore_functions:
+      - EulerHS.Logger.TinyLogger.logRemaining
+      - EulerHS.ART.V2.FlowUtils.runProducerWithRetries
+      - FlowSpec.countTo100
+  
+  - fn_rule_name: RandomBytes Rule
+    fn_name: Crypto.Random.Types.getRandomBytes
+    arg_no: 0
+    fns_blocked_in_arg: []
+    types_blocked_in_arg: []
+    types_to_check_in_arg: []
+    fn_rule_fixes:
+      - Use of function `getRandomBytes` is only allowed from `EulerHS.Language` module.
+      - For e.g. - L.getRandomBytes "unique_tag" Length
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules:
+      - EulerHS.Framework.Interpreter
+  
+  - fn_rule_name: RunIO Rule
+    fn_name: 
+      - runIO
+      - runIO'
+    arg_no: 0
+    fns_blocked_in_arg: []
+    types_blocked_in_arg: []
+    types_to_check_in_arg: []
+    fn_rule_fixes:
+      - Use function `runIOWithART` from `EulerHS.Language` module (runIO is deprecated).
+      - When calling the function, avoid using parentheses or $ to separate the runIOWithART call from the IO function call.
+      - Examples ->
+      - Not recommended -> L.runIOWithART "unique_tag" $ IOFunction arg1 arg2
+      - Not recommended -> L.runIOWithART "unique_tag" (IOFunction arg1 arg2)
+      - Recommended -> L.runIOWithART "unique_tag" IOFunction arg1 arg2
+    fn_rule_exceptions: []
+    fn_rule_ignore_modules:
+      - EulerHS.ART.FlowUtils
+      - EulerHS.ART.IOReplay
+      - EulerHS.ART.ReplayFunctions
+      - EulerHS.ART.V2.FlowUtils
+      - EulerHS.Extra.KMS
+      - EulerHS.Framework.Interpreter
+      - EulerHS.Framework.Language
+      - EulerHS.KVConnector.Metrics
+      - Envs
+      - Flow
+      - SnowflakesSpec
+      - FlowSpec
+      - Scenario1

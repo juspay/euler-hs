@@ -1,568 +1,554 @@
-# Juspay's EulerHS Framework
+# EulerHS Project
 
-***EulerHS*** is a free monadic framework for easy building concurrent backend and console applications in Haskell. This framework provides you with the most important subsystems already integrated, such as SQL DBs, logging, KV DBs and other.
+### EulerHS Framework
 
-The framework represents a safe layer with its own philosophy of exception safety, so you don't need to think about those difficult Haskell questions.
+***euler-hs/Flow*** is a free monadic framework for building backend and console applications in Haskell.
 
-The framework also offers two testing mechanisms: integration testing facilities and automatic whitebox testing mechanism. The code you'll be writing will be simple and testable. See the related materials for more info.
+The framework exports the Flow monad which provides the following facilities:
 
-Framework is successfully used in production in Juspay and shows impressive results.
+  - SQL DB interaction (using the `beam` library). Postgres, MySQL and SQLite DBs supported.
+  - KV DB interaction. Redis is supported.
+  - Forking flows in separate threads (green threads are used).
+  - HTTP services interaction (using servant-client facilities).
+  - Logging (tiny-logger inside).
+  - Typed mutable options.
+  - Pub/Sub mechanism (using Redis pub sub subsystem).
+  - Safe call to IO actions.
+  - Running system commands.
+  - ART (Automatic Regression Testing) - white box testing facilities.
+  - Integration testing framework.
 
-* [Framework features](#Framework-features)
-* [Business logic code sample](#The-Flow-monad)
-* [Important note on forked external libs](#Important-note-on-forked-external-libs)
-  - [hedis library for Redis](#hedis-library-for-Redis)
-  - [beam-mysql library for MySql](#beam-mysql-library-for-MySql)
-  - [beam](#beam)
-* [EulerHS application architecture](#EulerHS-application-architecture)
-* [Flow monad sample usages](#Flow-monad-sample-usages)
-  - [Logging](#Logging)
-  - [Typed options](#Typed-options)
-  - [SQL subsystem](#SQL-subsystem)
-  - [mtl style support](#mtl-style-support)
-  - [KV DB subsystem](#KV-DB-subsystem)
-  - [Concurrency](#Concurrency)
-  - [Forking and awaiting child flows](#Forking-and-awaiting-child-flows)
-* [Building the framework](#Building-the-framework)
-* [Testing the framework](#Testing-the-framework)
-* [EulerHS tutorials and template projects](#EulerHS-tutorials-and-template-projects)
-* [Background materials](#Background-materials)
+### Euler Backend
 
-## Framework features
+***euler-backend*** is a web/REST/HTTP application, a direct port of euler-ps for implementing
+  [Juspay APIs](https://www.juspay.in/docs/api/ec/) in Haskell.
+  The application is based on the Servant web framework.
+  for HTTP facilities and the Flow framework for business logic.
 
-The framework exports the `Flow` monad which provides the following facilities:
+## Getting started
 
-  - Custom Prelude (universum-based)
-  - SQL DB interaction using the `beam` library. Supported SQL backends:
-      * Postgres
-      * MySQL
-      * SQLite
-  - KV DB interaction. Supported KV DBs:
-      * Redis
-  - Async and parallel flows evaluation
-  - Client HTTP in two forms:
-      * Servant-based HTTP client interaction
-      * Low-level HTTP client
-  - Logging (tiny-logger inside)
-  - Typed mutable options
-  - Safe IO actions
-  - Exception-handling mechanism
-  - Running OS system commands
-  - ART (Automatic Regression Testing) - white box testing facilities
-  - Integration testing framework
-  - Experimental Pub/Sub mechanism (using Redis pub sub subsystem)
+### Setup
 
-## Business logic code sample
+Follow the instructions from [euler-nix-common](https://bitbucket.juspay.net/projects/NIX/repos/euler-nix-common/browse/SETUP.md)
 
-A sample scenario you may find [here](./test/EulerHS/TestData/Scenarios/Scenario1.hs).
+### Development
 
-```haskell
-import           EulerHS.Prelude
-import qualified EulerHS.Language as L
-import           EulerHS.TestData.API.Client
-import           EulerHS.TestData.Types
-import           Servant.Client (BaseUrl (..), Scheme (..))
+Enter development shell by running:
+```bash
+nix develop
+```
+or enter development shell on `cd` with [direnv + nix-direnv](https://nixos.asia/en/direnv)
 
-testScenario1 :: L.Flow User
-testScenario1 = do
-  logDebug "testScenario1" "Running sys cmd whoami..."
-  localUserName <- L.runSysCmd "whoami"
-
-  logDebug "testScenario1" "Reading a guid from file..."
-  localGUID <- L.runIO (readFile "my_guid.txt")
-
-  logDebug "testScenario1" "Generating new guid..."
-  guid <- L.generateGUID
-
-  logDebug "testScenario1" "Obtaining URL..."
-  url <- maybe (mkUrl "127.0.0.1") mkUrl <$> L.getOption UrlKey
-
-  logDebug "testScenario1" "Calling some HTTP API..."
-  res <- L.callServantAPI Nothing url getUser
-
-  logDebug "testScenario1" "Finished."
-  pure $ case res of
-    Right u | localGUID /= userGUID u -> u
-    Right u | otherwise -> User localUserName "" $ toString guid
-    _ -> User localUserName "Smith" $ toString guid
-  where
-    mkUrl :: String -> BaseUrl
-    mkUrl host = BaseUrl Http host port ""
+Hot reload with `ghcid` on code change for `euler-hs`:
+```bash
+ghcid -c cabal repl euler-hs
 ```
 
-## Important note on forked external libs
-
-Juspay made forks of several libraries to fix their problems and to support
-specific cases. You might want to be aware of these Juspay-specific fixes. If they are not suitable for your needs, it might need to avoid them till EulerHS v3.0.
-
-### hedis library for Redis
-
-[hedis](https://github.com/juspay/hedis) is stapled to a Juspay-specific fork as current. This fork is multiple releases behind the current mainline, incompatibly.
-
-### beam-mysql library for MySql
-
-The [beam-mysql](https://github.com/juspay/beam-mysql) is rewritten almost completely. The original version doesn't have protection from SQL injections, and also is written with some internal problems. The updated version fixes that.
-
-More info on `beam` usage can be found in [BEAM-NOTES](./BEAM-NOTES.md).
-
-### beam
-
-We made several minor improvements of the original `beam` library in [our fork](https://github.com/juspay/beam). These changes do not have anything Juspay-specific, but yet to be pushed to the upstream.
-
-More info on `beam` usage can be found in [BEAM-NOTES](./BEAM-NOTES.md).
-
-## EulerHS application architecture
-
-The EulerHS framework slices your application into several layers preventing the implementation details to leak into the business logic. This helps to keep the business logic code simple, maintainable and more reliable. It also helps to tweak the implementation without affecting the business logic. The further development of the framework will be towards improving its safety and performance, but this won't require updating of the business logic code due to this clear layering.
-
-Layers of the typical web backend application with Servant:
-
-**Application layer:**
-
-* Application (`IO` monad)
-  - Processes app configs and command line arguments
-  - Manages `FlowRuntime`
-  - Runs Servant HTTP server
-* API types model
-  - Types used in Servant to handle queries and API methods
-* Servant method handler (Servant monad stack: `ReaderT FlowRuntime (ExceptT ServerError IO)`)
-  - Handles errors and exceptions
-  - Validates requests
-  - Converts API types into domain types and back
-  - Uses API types model
-  - Runs business logic scenarios using `FlowRuntime` and interpreters
-
-**Business domain layer:**
-
-* EulerHS language (the `Flow` monad and its derivables)
-  - Provides an abstracted, purified set of eDSLs which are free from implementation details
-  - Helps to organize business logic code
-* Domain model (ADT types mostly)
-  - Represents types and functions directly related to the domain
-* DB model (`beam`-powered schema)
-  - DB representation of domain
-* Business logic scenarios (`Flow` monad and its derivables)
-  - Interacts with domain model and DB model
-  - Isolated from the other layers
-
-**Implementation layer:**
-
-* EulerHS runtime (`FlowRuntime`)
-  - Keeps operational data of the framework
-  - Handles resources, manages connections
-* EulerHS interpreters (`IO`-based monadic stack)
-  - Connects `Flow` scenarios to real subsytems and libraries
-  - Handles exceptions, threads, ART system
-  - Uses `FlowRuntime`
-
-Checkout [Background materials](#Background-materials) to know more about this layering.
-
-## Flow monad sample usages
-
-### Logging
-
-Framework provides logging mechanism out-of-the-box. It provides 4 logging functions:
-
-```haskell
-logInfo    :: Show tag => tag -> Message -> Flow ()
-logError   :: Show tag => tag -> Message -> Flow ()
-logDebug   :: Show tag => tag -> Message -> Flow ()
-logWarning :: Show tag => tag -> Message -> Flow ()
+If you are facing issues with the setup, run [nix-health](https://crates.io/crates/nix_health) to verify everything is green:
+```bash
+cd euler-hs
+nix --accept-flake-config run github:juspay/nix-browser#nix-health .
 ```
 
-Usage is quite simple.
+### Build
 
-```haskell
-import qualified EulerHS.Language as L
-
-myFlow :: L.Flow ()
-myFlow = L.logInfo "myFlow" "Hello world!"
+Build the library by running:
+```bash
+nix build
 ```
 
-Notice there is no anything related to a specific logging library. It's all hidden behind the `Flow` interface.
+## FAQ
+### Locally link euler dependencies
+Create `cabal.project.local` by running:
+```bash
+echo 'packages:
+  ../euler-events-hs' > cabal.project.local
+```
+**Note: modify the path for dependencies if needed**
 
-The logging subsystem can be configured on the start of the application. You should specify what logger you want passing a logger creation function into `withFlowRuntime` or `createFlowRuntime` functions.
+### Override dependencies
 
-- No logger (`createVoidLoggerRuntime`)
-- Memory logger (`createMemoryLoggerRuntime`). Can eat your memory very fast!
-- File logger (a special flag in `LoggerConfig`). Will flush logs into a file (the action is not immediate).
-- Console logger (a special flag in `LoggerConfig`). Will show logs in console.
+#### Add input
 
-You can also choose should your file and console logger be sync or async (a special flag in `LoggerConfig`).
+##### Internal bitbucket repository
+```nix
+# In inputs of flake.nix
 
-N.B. Async logger is not properly tested yet, it can have performance implications.
+# Using a commit
+euler-events-hs = {
+  type = "git";
+  # This could be https url or ssh url (preferably ssh)
+  url = "ssh://git@ssh.bitbucket.juspay.net/fram/euler-evetns-hs";
+  # Branch name
+  ref = "emergence";
+  # Commit
+  rev = "f4ae116f61ffd89fe4ea3e7f19b625544d0ea227";
+  inputs.common.follows = "common";
+};
 
-```haskell
-import qualified EulerHS.Types as T
-import qualified EulerHS.Runtime as R
-import qualified EulerHS.Interpreters as I
 
-loggerConfig :: T.LoggerConfig
-loggerConfig = T.LoggerConfig
-    { T._isAsync = False
-    , T._logLevel = Debug
-    , T._logFilePath = "/tmp/logs/myFlow.log"
-    , T._logToConsole = True
-    , T._logToFile = True
-    , T._maxQueueSize = 1000
-    , T._logRawSql = False
-    }
+# Using only the branch
+euler-evetns-hs = {
+  type = "git";
+  url = "ssh://git@ssh.bitbucket.juspay.net/fram/euler-evetns-hs";
+  ref = "emergence";
+  inputs.common.follows = "common";
+};
 
-runApp :: IO ()
-runApp = do
-  let mkLoggerRt = R.createLoggerRuntime T.defaultFlowFormatter loggerConfig
-  R.withFlowRuntime (Just mkLoggerRt)
-    $ \flowRt -> I.runFlow flowRt myFlow
+
+# Using tags
+# Why not just `ref = "4.0.4`? See here: https://github.com/NixOS/nix/issues/3701#issuecomment-674308574
+euler-evetns-hs = {
+  type = "git";
+  url = "ssh://git@ssh.bitbucket.juspay.net/fram/euler-evetns-hs";
+  ref = "refs/tags/4.0.4";
+  inputs.common.follows = "common";
+};
+
+```
+##### Public repositories
+```nix
+# github
+repo = {
+  url = "github:<owner>/<repo>/<branch/commit/tag>";
+  # If the repo doesn't have a flake.nix/ you don't want to use it
+  flake = false;
+};
+```
+Refer here for more URL syntax: https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake.html#url-like-syntax
+
+#### Use input added above to override the haskell package set
+
+Head over to `flake.nix` and follow the instructions here: https://community.flake.parts/haskell-flake/dependency#source
+
+#### Update the lock file
+
+Update all inputs:
+```sh
+nix flake update
+```
+Update specific input:
+```sh
+nix flake lock --update-input euler-events-hs
 ```
 
-The framework also supports different logger formatters for different flows. See documentation on `FlowFormatter` for more info.
+### Find commit and path to a input in the dependency graph
 
-On `FlowRuntime` disposal, the rest of the queue of logs will be flushed gracefully.
-
-Log entries are considered app-wide, but there is a `LogCounter` that is counting entries and helping to see their ordering.
-
-Ordering itself is not guaranteed.
-
-### Typed options
-
-Just typed key-value options.
-
-```haskell
-getOption :: (OptionEntity k v) => k -> Flow (Maybe v)
-setOption :: (OptionEntity k v) => k -> v -> Flow ()
-delOption :: (OptionEntity k v) => k -> Flow ()
+Let's say, I want to find what is the revision/commit of `hedis` input:
+```sh
+nix flake metadata --json | nix run nixpkgs#jq -- '.. | ."hedis"? | select( . != null )'
 ```
-
-Options work as a shared concurrent yet mutable state,
-so be careful to not produce data races.
-
-Avoid using it as an operational state of your app, it's better to use `StateT` on top of the `Flow`. See [State handling](#State-handling) for more info.
-
-```haskell
-data TestIntKey = TestIntKey
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
-
-data TestStringKey = TestStringKey
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
-
-instance T.OptionEntity TestStringKey String
-instance T.OptionEntity TestIntKey Int
-
-myFlow :: L.Flow (Maybe String, Maybe Int)
-myFlow = do
-  _  <- L.setOption TestStringKey "lore ipsum"
-  _  <- L.setOption TestIntKey 100
-  v1 <- L.getOption TestStringKey
-  v2 <- L.getOption TestIntKey
-  pure (v1, v2)
-
--- (Just "lore ipsum", Just 100)
-```
-
-### SQL subsystem
-
-##### Supported SQL backends
-
-This subsystem supports several SQL backends:
-
-- MySQL
-- Postgres
-- SQLite
-
-The goal was to provide a unified interface for all those backends, so that different projects could have a relatively similar code.
-
-Unfortunately, there are two drawbacks here.
-
-- We had to fix many problems in `beam` and related libraries, but were unable to push all the changes to the upstream. This especially true regarding `beam-mysql` that we had to rewrite almost completely.
-- Framework cannot provide things specific to any SQL backend. Only a common subset of features.
-- `beam` itself is a sophisticated library, and its usage is quite difficult. You may want to consult with our [cheatsheet](./BEAM-NOTES.md) on `beam` usage.
-
-##### Connectivity and pools
-
-Framework allows you to create either permanent, application-wide SQL connections, or immediate single-usage connections in place. The `Flow` language provides two methods for connecting and one for disconnecting:
-
-```haskell
-initSqlDBConnection    :: DBConfig beM -> Flow (DBResult (SqlConn beM))
-getOrInitSqlConnection :: DBConfig beM -> Flow (DBResult (SqlConn beM))
-deinitSqlDBConnection  :: SqlConn beM  -> Flow ()
-```
-
-All the connections are held in pools by design (`resource-pool` library). There is no way to avoid this (except maybe making your own connections with `runIO`). You need to fill the `DBConfig` structure to setup the pool.
-
-```haskell
-import EulerHS.Types as T
-import qualified Database.Beam.MySQL as BM
-
-poolConfig = T.PoolConfig
-  { stripes = 1
-  , keepAlive = 10
-  , resourcesPerStripe = 50
+This will give me the following output:
+```json
+{
+  "flake": false,
+  "locked": {
+    "lastModified": 1689234100,
+    "narHash": "sha256-J4mqtraMzLJguL0BwMUETeBpNJXRf86E2ZaP9xx+4tY=",
+    "owner": "juspay",
+    "repo": "hedis",
+    "rev": "77bf501da57639a60728b577e1c3780f70ddb418",
+    "type": "github"
+  },
+  "original": {
+    "owner": "juspay",
+    "repo": "hedis",
+    "rev": "77bf501da57639a60728b577e1c3780f70ddb418",
+    "type": "github"
   }
-
-sqliteCfg :: DBConfig BM.SqliteM
-sqliteCfg = T.mkSQLitePoolConfig "SQliteDB" testDBName poolConfig
-```
-
-Here, `SqlietM` is a phantom type provided by the `beam-mysql` library. Every SQL backend has own phantom type to distinguish between them. You can use smart constructors for producing configs for every backend:
-
-```haskell
-import "beam-mysql"    Database.Beam.MySQL as BM
-import "beam-postgres" Database.Beam.Postgres as BP
-import "beam-sqlite"   Database.Beam.Sqlite as BS
-
-mkSQLitePoolConfig   :: ConnTag -> SQliteDBname   -> PoolConfig -> DBConfig BM.SqliteM
-mkPostgresPoolConfig :: ConnTag -> PostgresConfig -> PoolConfig -> DBConfig BP.Pg
-mkMySQLPoolConfig    :: ConnTag -> MySQLConfig    -> PoolConfig -> DBConfig BS.MySQLM
-```
-
-The `ConnTag` parameter is a `Text` mark that is used to uniquely identify a pool of your connections. If you want to have several pools (for example, for several distinct SQL backends), you should provide unique tags for each pool.
-
-Simplified smart constructors use a default pool setting:
-
-```haskell
-mkSQLiteConfig   :: ConnTag -> SQliteDBname   -> DBConfig BS.SqliteM
-mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
-mkMySQLConfig    :: ConnTag -> MySQLConfig    -> DBConfig BM.MySQLM
-
-defaultPoolConfig :: PoolConfig
-defaultPoolConfig = PoolConfig
-  { stripes = 1
-  , keepAlive = 100
-  , resourcesPerStripe = 1
-  }
-```
-
-##### DB model and DB schema with beam
-
-In order to query your database, you should define a DB model for its schema. This model will encode your tables and relations according to `beam` requirements.
-
-```haskell
-import qualified Database.Beam as B
-
--- Description of the @member@ table
-
-data MemberT f = Member
-    { memberId      :: B.C f Int
-    , surName       :: B.C f Text
-    , firstName     :: B.C f Text
-    , address       :: B.C f Text
-    , zipCode       :: B.C f Int
-    , telephone     :: B.C f Text
-    , recommendedBy :: B.C f (Maybe Int)
-    , joinDate      :: B.C f LocalTime
-    } deriving (Generic, B.Beamable)
-
--- Description of the primary key type:
-
-instance B.Table MemberT where
-  data PrimaryKey MemberT f = MemberId (B.C f Int)
-    deriving (Generic, B.Beamable)
-  primaryKey = MemberId . memberId
-
-type Member = MemberT Identity
-type MemberId = B.PrimaryKey MemberT Identity
-
--- Field names can be mapped 1:1 to names of the ADT, but it's possible
--- to alter them, like this:
-
-membersEMod
-  :: B.EntityModification (B.DatabaseEntity be db) be (B.TableEntity MemberT)
-membersEMod = B.modifyTableFields
-  B.tableModification
-    { memberId      = B.fieldNamed "memid"
-    , surName       = B.fieldNamed "surname"
-    , firstName     = B.fieldNamed "firstname"
-    , address       = B.fieldNamed "address"
-    , zipCode       = B.fieldNamed "zipcode"
-    , telephone     = B.fieldNamed "telephone"
-    , recommendedBy = B.fieldNamed "recommendedby"
-    , joinDate      = B.fieldNamed "joindate"
-    }
-
--- The Schema itself:
-
-data ClubDB f = ClubDB
-    { members    :: f (B.TableEntity MemberT)   -- members table
-    , facilities :: f (B.TableEntity FacilityT) -- facilities table
-    , bookings   :: f (B.TableEntity BookingT)  -- bookings table
-    } deriving (Generic, B.Database be)
-
--- DB Schema representation. Use this value to reference to any of tables.
-clubDB :: B.DatabaseSettings be ClubDB
-clubDB = B.defaultDbSettings `B.withDbModification` B.dbModification
-    { facilities = facilitiesEMod     -- Alter field names of tables.
-    , members    = membersEMod
-    , bookings   = bookingsEMod
-    }
-```
-
-There can be conversion functions between your domain model and DB models, but the simplest approach would be to stick with only the DB model.
-
-##### Querying
-
-A typical `SELECT` query for the `members` table is presented in the following code. It requests all members joined after this date:
-
-```haskell
-searchByDate :: LocalTime -> L.Flow (T.DBResult [Member])
-searchByDate startDate = do
-  conn <- connectOrFail sqliteCfg       -- obtain SQLite config somehow
-  L.runDB conn                          -- run a query non-transactionally
-    $ L.findRows                        -- SELECT query, returns rows
-    $ B.select
-    $ B.filter_ (\m -> joinDate m >=. B.val_ startDate)
-    $ B.all_ (members clubDB)
-```
-
-Notice that we use `runDB` for running SQL queries expressed in `beam` and wrapped into the `SqlDB` language. The `runDB` evaluates the DB script non-transactionally. Use another version of this function, `runDBTransaction` instead. In this case, any query packed into an `SqlDB` monadic block, will be scoped by a single transaction.
-
-`beam` exposes a set of methods to construct `insert`, `update` and `delete` queries. These all are integrated into the framework. Consult with this test suite [QueryExamplesSpec](testDB/SQLDB/Tests/QueryExamplesSpec.hs) on how to compose queries with `beam` and `SqlDB`.
-
-##### Permanent connections
-
-For permanent connections, you need to create them on the __Application Layer__ and pass them into your `Flow` scenarios. One of the possible solutions will be to wrap your `Flow` scenarios into a `ReaderT` stack (so called `ReaderT` pattern), and provide an environment with permanent connections:
-
-```haskell
-import qualified Database.Beam.Sqlite as BS
-
-data FlowEnv = FlowEnv
-  { sqliteConn1 :: T.SqlConn BS.SqliteM
-  , sqliteConn2 :: T.SqlConn BS.SqliteM
-  }
-
-type MyFlow a = ReaderT FlowEnv L.Flow a
--- The same as
--- type MyFlow r a = L.ReaderFlow FlowEnv a
-
-searchByDate :: LocalTime -> MyFlow (T.DBResult [Member])
-searchByDate startDate = do
-  FlowEnv conn1 _ <- ask
-  L.runDB conn1                         -- run a query
-    $ L.findRows                        -- SELECT query returning rows
-    $ B.select
-    $ B.filter_ (\m -> joinDate m >=. B.val_ startDate)
-    $ B.all_ (members clubDB)
-```
-
-Here, `DBResult` is an `Either` type that carries either success or a failure:
-
-```haskell
-data DBError = DBError DBErrorType Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-type DBResult a = Either DBError a
-```
-
-Where `DBErrorType` is an enum with various reasons of DB failure.
-
-For more info on the SQL DB subsystem usage, see tutorials and background materials.
-
-### mtl style support
-
-The framework exposes a type class `MonadFlow` with instances for `Flow`, `ReaderT r Flow`, `StateT s Flow`, `WriterT w Flow`, `ExceptT e Flow` and some other transformers. This makes it possible to write your `Flow` scenarios with the `mtl` style.
-
-Let's see how the scenario `searchByDate` will look like:
-
-```haskell
-searchByDate
-  :: MonadFlow m
-  => MonadReader FlowEnv m
-  => LocalTime
-  -> m (T.DBResult [Member])
-searchByDate startDate = do
-  FlowEnv conn1 _ <- ask
-  L.runDB conn1                         -- run a query
-    $ L.findRows                        -- SELECT query returning rows
-    $ B.select
-    $ B.filter_ (\m -> joinDate m >=. B.val_ startDate)
-    $ B.all_ (members clubDB)
+}
+"hedis"
 
 ```
-
-### KV DB subsystem
-
-The framework supports KV DBs in form of Redis.
-
-The way we work with KV DB connections differs from the SQL DB subsystem. This time, we should specify not the connection instance, but rather its name. Certainly, the connection should be pre-created, otherwise you'll get the error `KVDBConnectionDoesNotExist`.
-
-```haskell
-
-myFlow :: T.KVDBKey -> L.Flow (T.TxResult (Maybe T.KVDBValue))
-myFlow k = L.runKVDB "redis" $ L.multiExec $ do
-  L.setTx k "bbb"
-  res <- L.getTx k
-  L.delTx [k]
-  pure res
-
--- returns T.TxSuccess (Just "bbb")
+Now, I know what is the commit, but which `flake.nix` does this input belong to, to find this we run:
+```sh
+nix flake metadata --json | nix run nixpkgs#jq -- -c 'paths | select(.[-1] == "hedis")'
+```
+Which gives us the path that looks like:
+```sh
+["locks","nodes","euler-hs","inputs","hedis"]
+["locks","nodes","hedis"]
 ```
 
-See tests for more info:
-- [KVDBSpec](./testDB/KVDB/KVDBSpec.hs)
-- [KVDBArtSpec](./test/EulerHS/Tests/Framework/KVDBArtSpec.hs)
+Now we know that it belongs to `euler-hs`, this is how we know that to modify the commit of `hedis`, we need to update it in the inputs of `euler-hs`'s `flake.nix`
 
-### Concurrency
+## Usage guidelines
 
-EulerHS is a concurrent framework. It can be easily used with Servant or Scotty for building web services and RESTful applications. The runtime of the framework is concurrent and is capable to handle parallel flows. Although the Runtime is thread-safe, it doesn't free you from writing thread safe flows. The framework exposes a set of operations which may produce race conditions if used wrongly and/or from different threads:
-
-`getOption`
-`setOption`
-`delOption`
-
-`initSqlDBConnection`
-`deinitSqlDBConnection`
-`getSqlDBConnection`
-
-### Forking and awaiting child flows
-
-It's possible to fork controllable flows and await for their results. This subsystem can be used to compose async-like flows, but the main case is parallel execution.
-
-`Flow` has the following methods to work with forked flows:
-
-```haskell
-forkFlow  :: Description -> Flow () -> Flow ()
-forkFlow' :: Description -> Flow a -> Flow (Awaitable (Either Text a))
-await :: Maybe Microseconds -> Awaitable (Either Text a) -> m (Either AwaitingError a)
-```
-
-Notice that in the current framework there are no methods for killing a forked flow.
-
-```haskell
-myFlow :: L.Flow (Maybe String, Maybe String)
-myFlow = do
-  awaitable1 <- L.forkFlow' "Child Flow 1" (L.runIO (threadDelay 10000) >> pure "1")
-  awaitable2 <- L.forkFlow' "Child Flow 2" (L.runIO (threadDelay 100000) >> pure "2")
-  mbRes1 <- L.await Nothing awaitable1
-  mbRes2 <- L.await Nothing awaitable2
-  pure (mbRes1, mbRes2)
-
-  -- Returns (Just "1", Just "2") after approximately 100000 ms.
-```
-
-## Building the framework
-
-See [BUILD.md](./BUILD.md)
-
-## Testing the framework
-
-You can run `stack test` to see if your system is ready, and the framework can be used.
-
-### Integration tests for SQL backends
-
-There are disabled tests for MySQL and Postgres DB backends. To run them:
-- Create DB tables and fill with the appropriate data using these sql queries:
-  * [MySQLDBSpec.sql](./testDB/SQLDB/TestData/MySQLDBSpec.sql)
-  * [PostgresDBSpec.sql](./testDB/SQLDB/TestData/PostgresDBSpec.sql)
-- Uncomment the corresponding specs in `lib/euler-hs/testSqlDB/Main.hs`
-- Run tests:
-  `stack test euler-hs:sql`
-
-## EulerHS tutorials and template projects
+***See also:***
 
 * [Tutorial](./TUTORIAL.md)
+* [Architecture diagram](./docs/Architecture.png)
 * [Beam query examples](./lib/euler-hs/testDB/SQLDB/Tests/QueryExamplesSpec.hs)
-* [Echo server demo project](./demo/echo-server)
 
-## Background materials
+### State handling
 
-* [Hierarchical Free Monads](https://github.com/graninas/hierarchical-free-monads-the-most-developed-approach-in-haskell)
-* [Automatic whitebox testing with Free monads](https://github.com/graninas/automatic-whitebox-testing-showcase)
+Sometimes you need to handle some (possibly mutable) state in your flows.
+The framework doesn't support the state right as is,
+but there are several ways to do this with other tools.
+
+***Simple argument passing state***
+
+This is the simplest way. You pass some values as arguments across the flow functions.
+
+```haskell
+orderCreate :: OrderCreateRequest -> MerchantAccount -> Flow OrderCreateResponse
+orderCreate req mAccnt = do
+  order <- validateOrderCreateRequest req
+  orderCreate' order mAccnt
+
+orderCreate' :: Order -> MerchantAccount -> Flow AOrderCreateResponse
+orderCreate' order mAccnt = ...
+```
+
+Here, all the arguments can be treated as immutable state.
+You can't probably do that much with this kind of state.
+
+***StateT state***
+
+You can use StateT for handling immutable state in flows.
+
+```haskell
+
+type FlowT a = StateT Order a
+
+orderCreate :: OrderCreateRequest -> MerchantAccount -> Flow OrderCreateResponse
+orderCreate req mAccnt = do
+  order <- validateOrderCreateRequest req
+  runStateT (orderCreate' mAccnt) order
+
+orderCreate' :: MerchantAccount -> FlowT AOrderCreateResponse
+orderCreate' mAccnt = do
+  order <- get
+  lift someFlowMethod
+  put order
+  ...
+
+someFlowMethod :: Flow ()
+someFlowMethod = ...
+```
+
+You handle your state with the StateT monad transformer wrapped around the Flow monad.
+It allows to do 'mutability' but you'll have to lift the Flow methods.
+
+This state will be thread safe.
+
+***Options like a mutable state***
+
+Typically, options are not intended to be used as user defined state.
+But it's not prohibited somehow. Do it if you know what are you doing.
+The only restriction here is that the state should be serializable (ToJSON / FromJSON)
+because options should be like this.
+
+```haskell
+
+data Order = Order
+  { someFiled :: Int
+  }
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+data OrderKey = OrderKey
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+instance OptionEntity OrderKey Order
+
+orderCreate :: OrderCreateRequest -> MerchantAccount -> Flow OrderCreateResponse
+orderCreate req mAccnt = do
+  order :: Order <- validateOrderCreateRequest req
+  setOption OrderKey order
+  orderCreate' mAccnt
+
+orderCreate' :: MerchantAccount -> FlowT AOrderCreateResponse
+orderCreate' mAccnt = do
+  order <- getOption OrderKey
+  ...
+```
+
+This state will be thread safe itself but with forked flows it's possible
+to have race conditions anyway.
+
+***Mutable impure state***
+
+The idea is to have IORef, MVar or TVar defined outside the flows and use it
+in flows to store data.
+
+It is preferable to create any of these outside of the Flow monad
+as the `runIO` method can't return a created variable. Let's elaborate.
+
+This code will work, but it's kinda useless because doesn't allow to expose
+the internal IORef state:
+
+```haskell
+someFlow :: Flow ()
+someFlow = do
+  n :: Int <- runIO $ do
+    ref <- newIORef 100
+    readIORef ref
+  doSomethingWithN n
+```
+
+This flow won't work because the runIO method is not able to return IORef.
+IORef is not serializable:
+
+```haskell
+someFlow :: Flow ()
+someFlow = do
+  ref :: IORef Int <- runIO $ newIORef 100   -- won't compile
+  n <- runIO $ readIORef ref
+  doSomethingWithN n
+```
+
+The only way to work with IORef (or MVar which is better) is to pre-create it
+before the Flow scenario. Sample:
+
+```haskell
+-- API method for the Servant server
+orderCreate
+  :: OrderCreateRequest -> Handler ApiOrder.OrderCreateResponse
+orderCreate req = do
+
+  mVar :: MVar Order <- liftIO newEmptyMVar
+  ref :: IORef (Maybe Order) <- liftIO $ newIORef Nothing
+
+  runFlow $ Flows.orderCreate mVar ref req
+
+orderCreate
+  :: MVar Order
+  -> IORef (Maybe Order)
+  -> OrderCreateRequest
+  -> Flow OrderCreateResponse
+orderCreate mVar ref req = do
+  order :: Order <- validateOrderCreateRequest req
+  runIO $ writeIORef ref $ Just order   -- works
+  runIO $ putMVar mVar order            -- works
+  orderCreate' mAccnt
+
+orderCreate'
+  :: MVar Order
+  -> IORef (Maybe Order)
+  -> FlowT AOrderCreateResponse
+orderCreate' mVar ref = do
+  order <- runIO $ readIORef ref    -- works
+  order <- runIO $ readMVar mVar    -- works
+  ...
+```
+
+MVar and STM is thread safe, IORef is not thread safe.
+Still, race coniditions are possible even with MVars and STM.
+
+***Untraced IO and STM***
+It is possible to run IO actions outside of the ART tracing system, however
+it should be used with extreme caution as this means the following:
+
+    1. no trace will be collected
+    2. replay is not possible; instead, untraced IO-actions are re-executed on playback
+
+Such functionality only really makes sense for two scenarios:
+
+    1. mutation of in-memory data structures using `STM` -- in particular, the use of `atomically` and `newTVarIO`.
+    2. reading of sensitive data, such as API keys
+
+For example:
+
+```haskell
+countStuff :: Flow Int
+  countVar <- runUntracedIO $ newTVarIO (0 :: Int)
+  awaitable1 <- forkFlow' "counter1" $ void $ runUntracedIO $ countTo100 countVar
+  awaitable2 <- forkFlow' "counter2" $ void $ runUntracedIO $ countTo100 countVar
+  void $ await Nothing awaitable1
+  void $ await Nothing awaitable2
+  count <- runUntracedIO $ atomically $ readTVar countVar
+  return count
+
+countTo100 :: TVar Int -> IO Int
+countTo100 countVar = do
+  count <- atomically $ updateCount countVar
+  if count < 100
+    then countTo100 countVar
+    else return count
+
+updateCount :: TVar Int -> STM Int
+updateCount countVar = do
+  count <- readTVar countVar
+  when (count < 100) (writeTVar countVar (count + 1))
+  readTVar countVar
+```
+
+Although such `TVar`s can be allocated outside of `Flow`, this may make
+use of local and composable abstractions difficult.
+
+***Untraced IO and Sensitive Data***
+Another good use case is reading sensitive data which should not be collected
+by the ART system, such as e.g. API keys stored in a config inside of an `IORef`.
+
+Arguably the best way to deal with this is as follows:
+
+    1. store sensitive data as separate configuration state, for example in an `IORef`
+    2. read and write to this `IORef` using `runUntracedIO`
+    3. use `runIO` for any non-sensitive data
+
+This way the ART traces will never collect sensitive data, and replay/mocking of ART
+traces will still work in different execution environments with e.g. test API keys.
+
+***KV DB and SQL DB based state***
+
+
+***KV DB and SQL DB based state***
+
+You can use KV DB and SQL DB as an external state storage which is significantly
+less performant and less convenient.
+
+### Methods for connection management:
+
+*Takes SQL DB config and create connection that can be used in queries.*
+```haskell
+initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
+```
+
+*Deinit the given connection if you want to deny access over that connection.*
+```haskell
+deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
+```
+
+*Get existing connection. If there is no such connection, returns error.*
+```haskell
+getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
+```
+
+*Get existing SQL connection, or init a new connection.*
+```haskell
+getOrInitSqlConn :: T.DBConfig beM -> L.Flow (T.DBResult (T.SqlConn beM))
+```
+
+### SQL DB subsystem
+
+*Takes connection, sql query (described using BEAM syntax) and make request.*
+```haskell
+runDB
+  ::
+    ( T.JSONEx a
+    , T.BeamRunner beM
+    , T.BeamRuntime be beM
+    )
+  => T.SqlConn beM
+  -> L.SqlDB beM a
+  -> Flow (T.DBResult a)
+```
+
+Runs outside of a transaction. For transactions you can use `runTransaction`.
+
+*Extracting existing connection from FlowRuntime by given db config and runs sql query (described using BEAM syntax). Acts like 'getSqlDBConnection' + 'runDB'*
+```haskell
+withDB ::
+  ( T.JSONEx a
+  , T.BeamRunner beM
+  , T.BeamRuntime be beM
+  )
+  => T.DBConfig beM -> L.SqlDB beM a -> Flow a
+```
+
+When you start the application, you can initialize all the connections that you plan to use.
+```haskell
+keepConnsAliveForSecs :: NominalDiffTime
+keepConnsAliveForSecs = 60 * 10 -- 10 mins
+
+maxTotalConns :: Int
+maxTotalConns = 8
+
+mySQLCfg :: MySQLConfig
+mySQLCfg = MySQLConfig
+  { connectHost     = "localhost"
+  , connectPort     = 3306
+  , connectUser     = "username"
+  , connectPassword = "password"
+  , connectDatabase = "dbname"
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
+
+sqlDBcfg = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg
+    $ PoolConfig 1 keepConnsAliveForSecs maxTotalConns
+
+prepareDBConnections :: Flow ()
+prepareDBConnections = do
+  ePool <- initSqlDBConnection sqlDBcfg
+  throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB."
+
+```
+
+And then run flow methods with it
+```haskell
+endpointHandler :: RequestType -> Flow (Maybe Int)
+endpointHandler req = do
+    logInfo @String "endpointHandler" "endpointHandler started"
+    validReq <- validateRequest req
+    -- ...
+    -- some other actions
+    -- ...
+    res <- withDB sqlDBcfg $ do
+      let predicate DBTableType {idField} =
+          (idField    ==. B.val_ (validReq ^. reqIdField))
+      findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (dbTableName dbSchema)
+    pure $ (^. intField) <$> res
+```
+
+Also, you can put your dbConfig in Options and take it back later in specialized `withDB` wrappers. Maybe helpful when you should create config on startup, so config can't be hardcoded as constant and easily passed in methods (e.g. read DB password from env var and decode it with some IO operation). You can manage many different db configs
+
+At first define keys for DBs:
+```haskell
+data DB1Cfg = DB1Cfg
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+instance OptionEntity DB1Cfg (DBConfig MySQLM)
+
+data DB2Cfg = DB2Cfg
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+instance OptionEntity DB2Cfg (DBConfig Pg)
+```
+
+Then you can define a specialized wrapper for each db:
+```haskell
+withDB1 :: JSONEx a => SqlDB MySQLM a -> Flow a
+withDB1 act = do
+  dbcfg <- getOption DB1Cfg
+  case dbcfg of
+    Just cfg -> withDB cfg act
+    Nothing -> do
+      logError @String "MissingDB identifier" "Can't find DB1 identifier in options"
+      throwException YourException
+
+withDB2 :: JSONEx a => SqlDB Pg a -> Flow a
+withDB2 act = do
+  dbcfg <- getOption DB2Cfg
+  case dbcfg of
+    Just cfg -> withDB cfg act
+    Nothing -> do
+      logError @String "MissingDB identifier" "Can't find DB2 identifier in options"
+      throwException YourException
+```
+On startup initialization just put configs in Options
+
+```haskell
+prepareDBConnections :: Flow ()
+prepareDBConnections = do
+  sqlDBcfg1 <- runIO getFromEnvAndDecodeMySqlDbCfg
+  ePool1 <- initSqlDBConnection sqlDBcfg1
+  setOption DB1Cfg sqlDBcfg1
+  throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB1."
+  sqlDBcfg2 <- runIO getFromEnvAndDecodePostgresDbCfg
+  ePool2 <- initSqlDBConnection sqlDBcfg2
+  setOption DB2Cfg sqlDBcfg2
+  throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB2."
+```
+
+# Enabling SQL Logging
+
+To enable SQL query logging you can use `UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION`
+in your application `LoggerConfig`. However, this will logs data passed into the query,
+like API keys and other sensitive data. As such, this should be used for local debugging
+only!

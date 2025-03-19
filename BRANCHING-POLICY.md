@@ -10,7 +10,10 @@ General rule: avoid polluting the repository. It's a common place to work for ma
 - Consider the following subfolders:
     - `feature` for a new feature
     - `fix` for immediate fixes of something
-- It's also allowed to have a thematic subfolder.
+
+        Sample: `feature/kvdb-art`
+
+- It's also allowed to have a thematic subfolder like `credit-platform`.
 - Avoid merging to `master`, prefer to rebase your feature branch instead.
 - It's allowed to do merges within collective feature branches (otherwise it will be hard for participants to work together).
 - WIP comments in personal / feature branches allowed as long as you'll squash these commits before pushing them to `master`.
