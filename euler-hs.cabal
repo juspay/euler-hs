@@ -1,48 +1,121 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.6.0.1
-synopsis:      The Flow framework for web backends
-license:       Apache-2.0
+version:       9.11.5
+synopsis:      The Flow framework for Euler.
+description:
+homepage:      https://bitbucket.org/juspay/euler-hs
+license:
 author:        Juspay Technologies Pvt Ltd
-maintainer:    opensource@juspay.in
-copyright:     (C) Juspay Technologies Pvt Ltd 2019-2022
+maintainer:    euler@juspay.in
+copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
 category:      Euler
 build-type:    Simple
-tested-with:   GHC ==8.8.3
+tested-with:   GHC ==8.8.4 || ==8.10.7 || ==9.2.8
+data-files:    .juspay/*.yaml
+
+Flag Local
+  Description: Use ghc options for quick build
+  Default:     False
+  Manual:      True
+
+flag unmask-numeric-keys
+  description:       Unmask values of numeric keys
+  default:           False
+  manual:            True
+
+source-repository head
+  type:     git
+  location: https://bitbucket.org/juspay/euler-hs
+
+flag euler-repo
+  description: Enable modules for non-euler-repo
+  default:     False
+
+flag redis-core-export
+  description: Enable export of redis core functions
+  default:     False
 
 common common-lang
-  ghc-options:
-    -Wall -Wcompat -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wredundant-constraints
 
-  build-depends:      base >=4.13 && <5
+  if flag(unmask-numeric-keys)
+    cpp-options:     -DUNMASK_NUMERIC_KEYS
+
+  if flag(redis-core-export)
+    cpp-options:     -DREDIS_CORE_EXPORT
+
+  if flag(Local)
+    ghc-options:
+      -O0 -fno-cse -fmax-simplifier-iterations=1 -fno-specialise-aggressively -j4
+      -Wall -Wcompat -Wincomplete-record-updates
+      -Wincomplete-uni-patterns -Wredundant-constraints -Werror
+        -- TODO: Remove the flag -Wno-ambiguous-fields after fixing the following issue:
+        -- The record update r {_latencyInfo = x} with type APIMetricInfo is ambiguous.
+        -- This will not be supported by -XDuplicateRecordFields in future releases of GHC.
+      -Wno-ambiguous-fields
+      -Werror=incomplete-patterns
+        -- TODO: Remove the flag -Wno-deprecations after using DP.newPool instead of DP.createPool
+      -Wno-deprecations
+      -fplugin=Sheriff.Plugin -fplugin-opt=Sheriff.Plugin:{"failOnFileNotFound":true,"saveToFile":true}
+      -fplugin=Fdep.Plugin -fplugin-opt=Fdep.Plugin:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false}
+      -fplugin=FieldInspector.PluginFields -fplugin-opt=FieldInspector.PluginFields:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false,"api_contract":false}
+      -fplugin=FieldInspector.PluginTypes -fplugin-opt=FieldInspector.PluginTypes:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false,"api_contract":false}
+      -fplugin=Endpoints.Plugin -fplugin-opt=Endpoints.Plugin:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false}
+  else
+    ghc-options:
+      -Wall -Wcompat -Wincomplete-record-updates
+      -Wincomplete-uni-patterns -Wredundant-constraints -Werror -O2 -j4
+        -- TODO: Remove the flag -Wno-ambiguous-fields after fixing the following issue:
+        -- The record update r {_latencyInfo = x} with type APIMetricInfo is ambiguous.
+        -- This will not be supported by -XDuplicateRecordFields in future releases of GHC.
+      -Wno-ambiguous-fields
+      -Werror=incomplete-patterns
+        -- TODO: Remove the flag -Wno-deprecations after using DP.newPool instead of DP.createPool
+      -Wno-deprecations
+     
+      -fplugin=Sheriff.Plugin -fplugin-opt=Sheriff.Plugin:{"failOnFileNotFound":true}
+      -fplugin=Fdep.Plugin -fplugin-opt=Fdep.Plugin:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false}
+      -fplugin=FieldInspector.PluginFields -fplugin-opt=FieldInspector.PluginFields:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false,"api_contract":false}
+      -fplugin=FieldInspector.PluginTypes -fplugin-opt=FieldInspector.PluginTypes:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false,"api_contract":false}
+      -fplugin=Endpoints.Plugin -fplugin-opt=Endpoints.Plugin:{"path":"./tmp/fdep/","port":4444,"host":"::1","log":false,"tc_funcs":false}
+
+  build-depends:
+    , base
+    , record-dot-preprocessor
+    , record-hasfield
+    , euler-events-hs
+    , sheriff
+    , fdep
+    , fieldInspector
+    , endpoints
+-- TODO: Need to add ENV check to remove lr support for unwanted repos
+    , large-anon
+    , large-generics
+    , large-records
+
   default-extensions:
     NoImplicitPrelude
-    ConstraintKinds
     DataKinds
-    DefaultSignatures
     DeriveFunctor
     DeriveGeneric
     DuplicateRecordFields
-    ExplicitNamespaces
+    EmptyCase
     FlexibleContexts
     FlexibleInstances
-    FunctionalDependencies
-    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
     LambdaCase
     MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
     OverloadedLabels
     OverloadedStrings
-    PatternSynonyms
-    RankNTypes
-    RecordWildCards
-    ScopedTypeVariables
     TupleSections
     TypeApplications
     TypeFamilies
-    TypeOperators
+    TypeSynonymInstances
+    UndecidableInstances
+    TemplateHaskell
+    ConstraintKinds
+    ScopedTypeVariables
+    ExistentialQuantification
     ViewPatterns
 
   default-language:   Haskell2010
@@ -52,89 +125,160 @@ library
   exposed-modules:
     EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
+    EulerHS.Extra.Aeson
+    EulerHS.Extra.Combinators
     EulerHS.Extra.Test
+    EulerHS.Extra.Time
     EulerHS.Extra.Validation
     EulerHS.Interpreters
     EulerHS.Language
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
+    EulerHS.SqlDB.Language
+    EulerHS.KVConnector.DBSync 
+    EulerHS.Extra.KafkaClient.Utils
+    EulerHS.KVConnector.Encoding
+    EulerHS.KVConnector.Flow
+    EulerHS.KVConnector.Metrics
+    EulerHS.KVConnector.Types
+    EulerHS.Logger.Types
+    EulerHS.KVConnector.InMemConfig.Types
+    EulerHS.KVConnector.Utils
+    EulerHS.Extra.Regex
+    EulerHS.Masking
+    EulerHS.Extra.KMS
+    EulerHS.Extra.URLSanitization
+    EulerHS.Extra.Snowflakes.Types
+    EulerHS.Extra.Snowflakes.Flow
+    EulerHS.Extra.Monitoring.Types
+    EulerHS.Extra.Monitoring.Flow
+    EulerHS.KVConnector.InMemConfig.Flow
+    EulerHS.ART.Utils
+    EulerHS.ART.EnvVars
+    EulerHS.ART.FlowUtils
+    EulerHS.ART.Types
+    EulerHS.ApiHelpers
+    EulerHS.ART.ReplayFunctions
+    EulerHS.ART.IOReplay
+    EulerHS.ART.V2.Option
+    EulerHS.ART.V2.Utils
+    EulerHS.ART.V2.Types
+    EulerHS.ART.V2.FlowUtils
+    EulerHS.PIIEncryption
+    EulerHS.Compression
+    EulerHS.KVConnector.PIIUtils
+    EulerHS.EnvVars
+    EulerHS.Logger.XmlToJson
+    EulerHS.Encryption
+    EulerHS.Common
+    EulerHS.KVDB.Types
+    EulerHS.TenantRedisLayer
+    EulerHS.Constants
 
   other-modules:
-    EulerHS.Core.Api
-    EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Interpreter
-    EulerHS.Core.KVDB.Language
-    EulerHS.Core.Language
-    EulerHS.Core.Logger.Impl.TinyLogger
-    EulerHS.Core.Logger.Interpreter
-    EulerHS.Core.Logger.Language
-    EulerHS.Core.Masking
-    EulerHS.Core.PubSub.Interpreter
-    EulerHS.Core.PubSub.Language
-    EulerHS.Core.Runtime
-    EulerHS.Core.SqlDB.Interpreter
-    EulerHS.Core.SqlDB.Language
-    EulerHS.Core.Types
-    EulerHS.Core.Types.BinaryString
-    EulerHS.Core.Types.Common
-    EulerHS.Core.Types.DB
-    EulerHS.Core.Types.Exceptions
-    EulerHS.Core.Types.HttpAPI
-    EulerHS.Core.Types.KVDB
-    EulerHS.Core.Types.Logger
-    EulerHS.Core.Types.MySQL
-    EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Postgres
-    EulerHS.Core.Types.Serializable
-    EulerHS.Extra.Aeson
+    EulerHS.Api
+    EulerHS.ART.DBReplay
+    EulerHS.BinaryString
     EulerHS.Extra.Language
-    EulerHS.Framework.Flow.Interpreter
-    EulerHS.Framework.Flow.Language
-    EulerHS.Framework.Interpreters
+    EulerHS.Framework.Interpreter
     EulerHS.Framework.Language
     EulerHS.Framework.Runtime
+    EulerHS.HttpAPI
+    EulerHS.KVDB.Interpreter
+    EulerHS.KVDB.Language
+    EulerHS.Logger.Interpreter
+    EulerHS.Logger.Language
+    EulerHS.Logger.Runtime
+    EulerHS.Logger.TinyLogger
+    EulerHS.Options
+    EulerHS.PubSub.Interpreter
+    EulerHS.PubSub.Language
+    EulerHS.SqlDB.Interpreter
+    EulerHS.SqlDB.MySQL
+    EulerHS.SqlDB.Postgres
+    EulerHS.SqlDB.Types
+    EulerHS.Extra.Orphans
+    EulerHS.Extra.Redis
 
+  if flag(euler-repo)
+    other-modules: 
+      EulerHS.SqlDB.Helper
+      EulerHS.SqlDBQueryImpl
+  else 
+    exposed-modules:
+      EulerHS.SqlDB.Helper
+      EulerHS.SqlDBQueryImpl
+  
   build-depends:
+    , QuickCheck
     , aeson
+    , amazonka
+    , amazonka-core
+    , amazonka-kms
+    , amazonka-s3
+    , aeson-pretty
     , base64-bytestring
-    , base64-bytestring-type
-    , beam-core               ^>=0.9.0.0
-    , beam-mysql              ^>=1.2.1.0
-    , beam-postgres           ^>=0.5.0.0
-    , beam-sqlite             ^>=0.5.0.0
-    , binary
+    , beam-core
+    , beam-mysql
+    , beam-postgres
+    , beam-sqlite
     , bytestring
     , case-insensitive
+    , casing
     , cereal
     , connection
     , containers
+    , conduit-extra
+    , cryptostore
+    , cryptonite
+    , ctrie
     , data-default
+    , directory
     , dlist
+    , dns
     , exceptions
     , extra
+    , filepath
     , fmt
+    , formatting
     , free
+    , generic-deriving
     , generic-lens
-    , hedis 
+    , hedis             
+    , http-api-data
     , http-client
     , http-client-tls
     , http-media
     , http-types
+    , jose-jwt
+    , juspay-extra
     , lens
-    , mason
-    , mysql-haskell           ^>=0.8.4.2
+    , lrucache
+    , lrucaching
+    , mysql-haskell
     , named
     , newtype-generics
+    , nonempty-containers
+    , nonempty-vector
+    , optics-core
+    , pem
     , postgresql-simple
     , process
     , profunctors
+    , random
+    , reflection
     , resource-pool
-    , sequelize               ^>=1.1.0.0
-    , servant-client          ^>=0.18.1
-    , servant-client-core     ^>=0.18.1
+    , safe
+    , scientific
+    , sequelize             
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
     , sqlite-simple
     , stm
+    , store
     , string-conversions
     , text
     , time
@@ -147,7 +291,26 @@ library
     , utf8-string
     , uuid
     , validation
+    , validation-selective
     , vector
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
+    , safe-exceptions
+    , pcre-heavy
+    , pcre-light
+    , attoparsec
+    , tasty-hunit
+    , mtl
+    , zlib
+    , zstd
+    , streamly-core
+    , streamly-serialize-instances
+    , xmlbf
+    , xmlbf-xeno
+    , memory
+    , hw-kafka-client
 
   hs-source-dirs:  src
 
@@ -156,134 +319,84 @@ test-suite language
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
   other-modules:
-    EulerHS.Core.Api
-    EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Interpreter
-    EulerHS.Core.KVDB.Language
-    EulerHS.Core.Language
-    EulerHS.Core.Logger.Impl.TinyLogger
-    EulerHS.Core.Logger.Interpreter
-    EulerHS.Core.Logger.Language
-    EulerHS.Core.Masking
-    EulerHS.Core.PubSub.Interpreter
-    EulerHS.Core.PubSub.Language
-    EulerHS.Core.Runtime
-    EulerHS.Core.SqlDB.Interpreter
-    EulerHS.Core.SqlDB.Language
-    EulerHS.Core.Types
-    EulerHS.Core.Types.BinaryString
-    EulerHS.Core.Types.Common
-    EulerHS.Core.Types.DB
-    EulerHS.Core.Types.Exceptions
-    EulerHS.Core.Types.HttpAPI
-    EulerHS.Core.Types.KVDB
-    EulerHS.Core.Types.Logger
-    EulerHS.Core.Types.MySQL
-    EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Postgres
-    EulerHS.Core.Types.Serializable
-    EulerHS.Extra.Aeson
-    EulerHS.Extra.Language
-    EulerHS.Framework.Flow.Interpreter
-    EulerHS.Framework.Flow.Language
-    EulerHS.Framework.Interpreters
-    EulerHS.Framework.Language
-    EulerHS.Framework.Runtime
-    EulerHS.Interpreters
-    EulerHS.Language
-    EulerHS.Prelude
-    EulerHS.Runtime
-    EulerHS.TestData.API.Client
-    EulerHS.TestData.Scenarios.Scenario1
+    ArtSpec
+    -- CachedDBSpec
+    Client
+    Common
+    DBSetup
+    Encryption
     EulerHS.TestData.Types
     EulerHS.Testing.Flow.Interpreter
     EulerHS.Testing.Types
-    EulerHS.Tests.Framework.ArtSpec
-    EulerHS.Tests.Framework.Common
-    EulerHS.Tests.Framework.DBSetup
-    EulerHS.Tests.Framework.FlowSpec
-    EulerHS.Tests.Framework.KVDBArtSpec
-    EulerHS.Tests.Framework.PubSubSpec
-    EulerHS.Tests.Framework.SQLArtSpec
-    EulerHS.Types
-    EulerHS.Tests.Framework.CachedDBSpec
-    EulerHS.Tests.Framework.MaskingSpec
+    HttpAPISpec
+    FlowSpec
+    KVDBArtSpec
+    MaskingSpec
+    PubSubSpec
+    Scenario1
+    SQLArtSpec
 
   build-depends:
     , aeson
     , aeson-pretty
     , async
-    , base64-bytestring
-    , base64-bytestring-type
     , beam-core
-    , beam-mysql              ^>=1.2.1.0
-    , beam-postgres           ^>=0.5.0.0
     , beam-sqlite
+    , beam-mysql
     , bytestring
-    , case-insensitive
-    , cereal
-    , connection
     , containers
     , data-default
     , directory
-    , dlist
     , euler-hs
-    , exceptions
     , extra
     , filepath
-    , fmt
-    , free
     , generic-arbitrary
     , generic-lens
     , hedis
     , hspec
     , http-client
     , http-client-tls
-    , http-media
-    , http-types
-    , lens
     , named
-    , newtype-generics
-    , mysql-haskell           ^>=0.8.4.2
-    , postgresql-simple
     , process
-    , profunctors
     , QuickCheck
     , quickcheck-instances
     , random
-    , resource-pool
     , safe-exceptions
     , sequelize
-    , servant               ^>=0.18.1
-    , servant-client        ^>=0.18.1
-    , servant-client-core     ^>=0.18.1
-    , servant-mock          ^>=0.8.7
-    , servant-server        ^>=0.18.1
-    , sqlite-simple
-    , stm
+    , servant
+    , servant-client
+    -- , servant-mock
+    , servant-server
     , string-conversions
     , text
-    , time
-    , tinylog
     , tls
-    , transformers
     , typed-process
-    , unagi-chan
-    , universum
     , unordered-containers
-    , utf8-string
     , uuid
     , vector
     , warp
+    , warp-tls
+    , x509-store
+    , tls
+    , connection
+    , time
+    , tinylog
+    , template-haskell
+    , casing
+    , scientific
+    , hspec-core
+    , cereal
+    , streamly-core
+    , streamly-serialize-instances
 
-  hs-source-dirs: test src
+  ghc-options:    -threaded -O2
+  hs-source-dirs: test/language
 
 test-suite db
   import:         common-lang
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
   other-modules:
-    KVDB.KVDBSpec
     SQLDB.TestData.Connections
     SQLDB.TestData.Scenarios.MySQL
     SQLDB.TestData.Scenarios.Postgres
@@ -307,7 +420,36 @@ test-suite db
     , postgresql-simple
     , process
     , servant
-    , servant-mock
+    -- , servant-mock
     , time
 
   hs-source-dirs: testDB
+
+test-suite extra
+  import:         common-lang
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  other-modules:
+    Options
+    SnowflakesSpec
+    XMLMasking
+    Envs
+    Flow
+
+  build-depends:
+    , aeson
+    , euler-hs
+    , hspec
+    , bytestring
+    , containers
+    , unordered-containers
+    , async
+    , tinylog
+    , directory
+    , text
+    , time
+    , juspay-extra
+    , streamly-core
+    , hw-kafka-client
+
+  hs-source-dirs: test/extra, test/common

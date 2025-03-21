@@ -1,26 +1,26 @@
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 
 module SQLDB.Tests.SQLiteDBSpec where
 
-import           EulerHS.Prelude
-
-import           EulerHS.Interpreters
-import qualified EulerHS.Language as L
-import           EulerHS.Types hiding (error)
-import qualified EulerHS.Types as T
-
-import           SQLDB.TestData.Connections
-import           SQLDB.TestData.Scenarios.SQLite
-import           SQLDB.TestData.Types
-
 import qualified Database.Beam.Sqlite as BS
+import           EulerHS.Interpreters (runFlow)
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
+import           EulerHS.Types (DBConfig, DBError (DBError),
+                                DBErrorType (SQLError), SQLError (SqliteError),
+                                SqliteError (SqliteErrorConstraint))
+import qualified EulerHS.Types as T
+import           Prelude (head, (!!))
+import           SQLDB.TestData.Connections (testDBName, withEmptyDB)
+import           SQLDB.TestData.Scenarios.SQLite (insertReturningScript,
+                                                  insertTestValues,
+                                                  selectOneDbScript,
+                                                  selectUnknownDbScript,
+                                                  uniqueConstraintViolationDbScript,
+                                                  updateAndSelectDbScript)
+import           SQLDB.TestData.Types (someUser, _userFirstName, _userLastName)
 import           Test.Hspec hiding (runIO)
-
 
 -- Configurations
 
@@ -34,7 +34,6 @@ poolConfig = T.PoolConfig
   , resourcesPerStripe = 50
   }
 
-
 sqlitePoolCfg :: T.DBConfig BS.SqliteM
 sqlitePoolCfg = T.mkSQLitePoolConfig "eulerSQliteDB" testDBName poolConfig
 
@@ -43,45 +42,46 @@ sqlitePoolCfg = T.mkSQLitePoolConfig "eulerSQliteDB" testDBName poolConfig
 spec :: Spec
 spec = do
   let
-      test sqliteCfg = do
+      test sqliteCfg' = do
         it "Double connection initialization should fail" $ \rt -> do
           eRes <- runFlow rt $ do
-            eConn1 <- L.initSqlDBConnection sqliteCfg
-            eConn2 <- L.initSqlDBConnection sqliteCfg
+            eConn1 <- L.initSqlDBConnection sqliteCfg'
+            eConn2 <- L.initSqlDBConnection sqliteCfg'
             case (eConn1, eConn2) of
-              (Left err, _) -> pure $ Left $ "Failed to connect 1st time: " <> show err
+              (Left err, _) -> pure $ Left $ "Failed to connect 1st time: " <> show @Text err
               (_, Left (T.DBError T.ConnectionAlreadyExists msg))
                 | msg == "Connection for eulerSQliteDB already created." -> pure $ Right ()
               (_, Left err) -> pure $ Left $ "Unexpected error type on 2nd connect: " <> show err
+              _ -> pure . Left $ "Double initialization worked for some reason"
           eRes `shouldBe` Right ()
 
         it "Get uninialized connection should fail" $ \rt -> do
           eRes <- runFlow rt $ do
-            eConn <- L.getSqlDBConnection sqliteCfg
+            eConn <- L.getSqlDBConnection sqliteCfg'
             case eConn of
               Left (T.DBError T.ConnectionDoesNotExist msg)
                 | msg == "Connection for eulerSQliteDB does not exists." -> pure $ Right ()
-              Left err -> pure $ Left $ "Unexpected error: " <> show err
+              Left err -> pure $ Left $ "Unexpected error: " <> show @Text err
               Right _ -> pure $ Left "Unexpected connection success"
           eRes `shouldBe` Right ()
 
         it "Init and get connection should succeed" $ \rt -> do
           eRes <- runFlow rt $ do
-            eConn1 <- L.initSqlDBConnection sqliteCfg
-            eConn2 <- L.getSqlDBConnection sqliteCfg
+            eConn1 <- L.initSqlDBConnection sqliteCfg'
+            eConn2 <- L.getSqlDBConnection sqliteCfg'
             case (eConn1, eConn2) of
-              (Left err, _) -> pure $ Left $ "Failed to connect: " <> show err
+              (Left err, _) -> pure $ Left $ "Failed to connect: " <> show @Text err
               (_, Left err) -> pure $ Left $ "Unexpected error on get connection: " <> show err
               _             -> pure $ Right ()
           eRes `shouldBe` Right ()
 
         it "Init and double get connection should succeed" $ \rt -> do
           eRes <- runFlow rt $ do
-            eConn1 <- L.initSqlDBConnection sqliteCfg
-            eConn2 <- L.getSqlDBConnection sqliteCfg
-            eConn3 <- L.getSqlDBConnection sqliteCfg
+            eConn1 <- L.initSqlDBConnection sqliteCfg'
+            eConn2 <- L.getSqlDBConnection sqliteCfg'
+            eConn3 <- L.getSqlDBConnection sqliteCfg'
             case (eConn1, eConn2, eConn3) of
-              (Left err, _, _) -> pure $ Left $ "Failed to connect: " <> show err
+              (Left err, _, _) -> pure $ Left $ "Failed to connect: " <> show @Text err
               (_, Left err, _) -> pure $ Left $ "Unexpected error on 1st get connection: " <> show err
               (_, _, Left err) -> pure $ Left $ "Unexpected error on 2nd get connection: " <> show err
               _                -> pure $ Right ()
@@ -89,26 +89,26 @@ spec = do
 
         it "getOrInitSqlConn should succeed" $ \rt -> do
           eRes <- runFlow rt $ do
-            eConn <- L.getOrInitSqlConn sqliteCfg
+            eConn <- L.getOrInitSqlConn sqliteCfg'
             case eConn of
-              Left err -> pure $ Left $ "Failed to connect: " <> show err
+              Left err -> pure $ Left $ "Failed to connect: " <> show @Text err
               _        -> pure $ Right ()
           eRes `shouldBe` Right ()
 
         it "Prepared connection should be available" $ \rt -> do
           void $ runFlow rt $ do
-            eConn <- L.initSqlDBConnection sqliteCfg
+            eConn <- L.initSqlDBConnection sqliteCfg'
             when (isLeft eConn) $ error "Failed to prepare connection."
           void $ runFlow rt $ do
-            eConn <- L.getSqlDBConnection sqliteCfg
+            eConn <- L.getSqlDBConnection sqliteCfg'
             when (isLeft eConn) $ error "Failed to get prepared connection."
 
         it "Unique Constraint Violation" $ \rt -> do
-          eRes <- runFlow rt (uniqueConstraintViolationDbScript sqliteCfg)
+          eRes <- runFlow rt (uniqueConstraintViolationDbScript sqliteCfg')
           eRes `shouldBe`
-            ( Left $ DBError
+            Left (DBError
                 ( SQLError $ SqliteError $
-                    SqliteSqlError
+                    T.SqliteSqlError
                       { sqlError        = SqliteErrorConstraint
                       , sqlErrorDetails = "UNIQUE constraint failed: users.id"
                       , sqlErrorContext = "step"
@@ -118,25 +118,25 @@ spec = do
             )
 
         it "Select one, row not found" $ \rt -> do
-          eRes <- runFlow rt (selectUnknownDbScript sqliteCfg)
-          eRes `shouldBe` (Right Nothing)
+          eRes <- runFlow rt (selectUnknownDbScript sqliteCfg')
+          eRes `shouldBe` Right Nothing
 
         it "Select one, row found" $ \rt -> do
-          eRes <- runFlow rt (selectOneDbScript sqliteCfg)
-          eRes `shouldSatisfy` (someUser "John" "Doe")
+          eRes <- runFlow rt (selectOneDbScript sqliteCfg')
+          eRes `shouldSatisfy` someUser "John" "Doe"
 
         it "Update / Select, row found & changed" $ \rt -> do
-          eRes <- runFlow rt (updateAndSelectDbScript sqliteCfg)
-          eRes `shouldSatisfy` (someUser "Leo" "San")
+          eRes <- runFlow rt (updateAndSelectDbScript sqliteCfg')
+          eRes `shouldSatisfy` someUser "Leo" "San"
 
         it "Insert returning should return list of rows" $ \rt -> do
-          eRes <- runFlow rt (insertReturningScript sqliteCfg)
+          eRes <- runFlow rt (insertReturningScript sqliteCfg')
 
           case eRes of
             Left  _  -> expectationFailure "Left DBResult"
             Right us -> do
               length us `shouldBe` 2
-              let u1 = us !! 0
+              let u1 = head us
               let u2 = us !! 1
 
               _userFirstName u1 `shouldBe` "John"

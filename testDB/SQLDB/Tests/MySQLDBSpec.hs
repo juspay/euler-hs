@@ -1,24 +1,30 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module SQLDB.Tests.MySQLDBSpec where
 
+import           Database.Beam.MySQL (MySQLM)
+import           Database.MySQL.Base ()
+import           EulerHS.Extra.Test (withMysqlDb)
+import           EulerHS.Interpreters (runFlow)
+import           EulerHS.Language (initSqlDBConnection)
 import           EulerHS.Prelude
-
-import           EulerHS.Interpreters
-import           EulerHS.Runtime (FlowRuntime, withFlowRuntime)
-import           EulerHS.Types hiding (error)
-
-import           SQLDB.TestData.Connections (connectOrFail)
-import           SQLDB.TestData.Scenarios.MySQL
-import           SQLDB.TestData.Types
-
-import           Test.Hspec hiding (runIO)
-
-import qualified Database.Beam.MySQL as BM
-import           Database.MySQL.Base
-import           EulerHS.Language
+import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Types as T
-import           System.Process
-
-import           EulerHS.Extra.Test
+import           Prelude (head, (!!))
+import           SQLDB.TestData.Scenarios.MySQL (insertAndSelectWithinOneConnectionScript,
+                                                 insertReturningScript,
+                                                 selectOneDbScript,
+                                                 selectRowDbScript,
+                                                 selectUnknownDbScript,
+                                                 throwExceptionFlowScript,
+                                                 uniqueConstraintViolationDbScript,
+                                                 uniqueConstraintViolationEveDbScript,
+                                                 uniqueConstraintViolationMickeyDbScript,
+                                                 updateAndSelectDbScript)
+import           SQLDB.TestData.Types (UserT (User), someUser, _userFirstName,
+                                       _userId, _userLastName)
+import           System.Process ()
+import           Test.Hspec hiding (runIO)
 
 
 testDBName :: String
@@ -34,7 +40,7 @@ mySQLCfg = T.MySQLConfig
   , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
-  , connectCharset  = Latin1
+  , connectCharset  = T.Latin1
   }
 
 mySQLRootCfg :: T.MySQLConfig
@@ -48,15 +54,18 @@ mySQLRootCfg =
   where
     T.MySQLConfig {..} = mySQLCfg
 
+mkMysqlConfig :: T.MySQLConfig -> T.DBConfig MySQLM
 mkMysqlConfig = T.mkMySQLConfig "eulerMysqlDB"
 
+poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
   , resourcesPerStripe = 50
   }
 
-mkMysqlPoolConfig mySQLCfg = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
+mkMysqlPoolConfig :: T.MySQLConfig -> T.DBConfig MySQLM
+mkMysqlPoolConfig mySQLCfg' = T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg' poolConfig
 
 spec :: Spec
 spec = do
@@ -64,9 +73,9 @@ spec = do
         it "Unique Constraint Violation" $ \rt -> do
           eRes <- runFlow rt $ uniqueConstraintViolationDbScript dbCfg
           eRes `shouldBe`
-            ( Left $ DBError
-                ( SQLError $ MysqlError $
-                    MysqlSqlError
+            Left (T.DBError
+                ( T.SQLError $ T.MysqlError $
+                    T.MysqlSqlError
                       { errCode   = 1062
                       , errMsg  = "Duplicate entry '2' for key 'PRIMARY'"
                       }
@@ -86,7 +95,7 @@ spec = do
         it "First insert success, last insert resolved on DB side (Mickey)" $ \rt -> do
           _ <- runFlow rt $ uniqueConstraintViolationMickeyDbScript dbCfg
           eRes <- runFlow rt $ selectRowDbScript 4 dbCfg
-          eRes `shouldSatisfy` (someUser "Mickey" "Mouse")
+          eRes `shouldSatisfy` someUser "Mickey" "Mouse"
 
         it "Txn should be completely rollbacked on exception (Billy)" $ \rt -> do
           _ <- runFlow rt $ throwExceptionFlowScript dbCfg
@@ -96,19 +105,19 @@ spec = do
 
         it "Insert and Select in one db connection (Milky way)" $ \rt -> do
           eRes <- runFlow rt $ insertAndSelectWithinOneConnectionScript dbCfg
-          eRes `shouldSatisfy` (someUser "Milky" "Way")
+          eRes `shouldSatisfy` someUser "Milky" "Way"
 
         it "Select one, row not found" $ \rt -> do
           eRes <- runFlow rt $ selectUnknownDbScript dbCfg
-          eRes `shouldBe` (Right Nothing)
+          eRes `shouldBe` Right Nothing
 
         it "Select one, row found" $ \rt -> do
           eRes <- runFlow rt $ selectOneDbScript dbCfg
-          eRes `shouldSatisfy` (someUser "John" "Doe")
+          eRes `shouldSatisfy` someUser "John" "Doe"
 
         it "Update / Select, row found & changed" $ \rt -> do
           eRes <- runFlow rt $ updateAndSelectDbScript dbCfg
-          eRes `shouldSatisfy` (someUser "Leo" "San")
+          eRes `shouldSatisfy` someUser "Leo" "San"
 
         it "Insert returning should return list of rows" $ \rt -> do
           eRes <- runFlow rt $ insertReturningScript dbCfg
@@ -117,7 +126,7 @@ spec = do
             Left  _  -> expectationFailure "Left DBResult"
             Right us -> do
               length us `shouldBe` 2
-              let u1 = us !! 0
+              let u1 = head us
               let u2 = us !! 1
 
               _userFirstName u1 `shouldBe` "John"

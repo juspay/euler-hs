@@ -1,67 +1,75 @@
 {
   inputs = {
-    # Common is used only to get the GHC 8.10 package set.
-    common.url = "github:nammayatri/common";
-    nixpkgs.follows = "common/nixpkgs";
-    flake-parts.follows = "common/flake-parts";
-    haskell-flake.follows = "common/haskell-flake";
+    common.url = "github:juspay/nix-common";
+    # Euler packages
+    euler-events-hs = {
+      url = "github:juspay/euler-events-hs";
+      inputs.common.follows = "common";
+    };
+    euler-haskell-common = {
+      url = "github:juspay/euler-haskell-common";
+      inputs.common.follows = "common";
+    };
+    haskell-sequelize = {
+      url = "github:juspay/haskell-sequelize";
+      inputs.common.follows = "common";
+    };
 
-    # Haskell dependencies
-    sequelize.url = "github:juspay/haskell-sequelize/beckn-compatible";
-    sequelize.flake = false;
-    beam.url = "github:srid/beam/ghc810"; # https://github.com/juspay/beam/pull/14
-    beam.flake = false;
-    beam-mysql.url = "github:juspay/beam-mysql/4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace";
-    beam-mysql.flake = false;
-    mysql-haskell.url = "github:juspay/mysql-haskell/788022d65538db422b02ecc0be138b862d2e5cee"; # https://github.com/winterland1989/mysql-haskell/pull/38
-    mysql-haskell.flake = false;
-    hedis.url = "github:juspay/hedis/22d814672d8476a6f8fb43047af2897afbf77ac6";
-    hedis.flake = false;
+    resource-pool = {
+      type = "git";
+      url = "https://github.com/juspay/pool";
+      ref = "ghc-9.2.8";
+      rev = "581813890b289de5060ddcd04f3822ae0085567b";
+      flake = false;
+    };
   };
-  outputs = inputs@{ nixpkgs, flake-parts, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = nixpkgs.lib.systems.flakeExposed;
-      imports = [
-        inputs.common.flakeModules.ghc810
-        inputs.haskell-flake.flakeModule
-      ];
-      perSystem = { self', pkgs, lib, config, ... }: {
-        packages.default = self'.packages.euler-hs;
-        haskellProjects.default = {
-          projectFlakeName = "euler-hs";
-          basePackages = config.haskellProjects.ghc810.outputs.finalPackages;
+  outputs = inputs:
+    inputs.common.lib.mkFlake { inherit inputs; } {
+      perSystem = { config, self', pkgs, pkgs-latest, ... }: {
+
+        haskellProjects.default = let fs = pkgs-latest.lib.fileset; in {
+          projectRoot = builtins.toString (fs.toSource {
+            root = ./.;
+            fileset = fs.unions [
+              ./src
+              ./test
+              ./testDB
+              ./euler-hs.cabal
+              ./.juspay
+            ];
+          });
+          imports = [
+            inputs.euler-events-hs.haskellFlakeProjectModules.output
+            inputs.euler-haskell-common.haskellFlakeProjectModules.output
+            inputs.haskell-sequelize.haskellFlakeProjectModules.output
+          ];
+
+          autoWire = [ "packages" ];
+
           packages = {
-            beam-core.source = inputs.beam + /beam-core;
-            beam-migrate.source = inputs.beam + /beam-migrate;
-            beam-mysql.source = inputs.beam-mysql;
-            beam-postgres.source = inputs.beam + /beam-postgres;
-            beam-sqlite.source = inputs.beam + /beam-sqlite;
-            hedis.source = inputs.hedis;
-            mysql-haskell.source = inputs.mysql-haskell;
-            sequelize.source = inputs.sequelize;
+            # If your package is a dependency for all euler packages, add it to
+            # `euler-nix-common` instead.
+            resource-pool.source = inputs.resource-pool;
           };
           settings = {
-            beam-core.jailbreak = true;
-            beam-migrate.jailbreak = true;
-            beam-mysql = {
+            # FIXME: make the tests work before merging
+            euler-hs = {
               check = false;
-              jailbreak = true;
+              buildAnalysis = true;
             };
-            beam-postgres = {
-              check = false;
-              jailbreak = true;
-            };
-            beam-sqlite = {
-              check = false;
-              jailbreak = true;
-            };
-            hedis.check = false;
-            mysql-haskell = {
-              check = false;
-              jailbreak = true;
-            };
-            sequelize.check = false;
+            fieldInspector.cabalFlags.enable-api-contract-plugins = true;
           };
+        };
+
+        # haskell-flake doesn't set the default package, but you can do it here.
+        packages.default = self'.packages.euler-hs;
+
+        devShells.default = pkgs.mkShell {
+          name = "euler-hs";
+          inputsFrom = [
+            config.haskellProjects.default.outputs.devShell
+            config.devShells.common
+          ];
         };
       };
     };
