@@ -1,17 +1,17 @@
 {
   inputs = {
-    common.url = "github:juspay/nix-common/98c6ae8b431b1008fc41ff20fc1cb64037e4ef5b";
+    common.url = "github:juspay/nix-common";
     # Euler packages
     euler-events-hs = {
-      url = "github:juspay/euler-events-hs/f05689a61e7ee6428703f9a8272b55e56aba6b99";
+      url = "github:juspay/euler-events-hs";
       inputs.common.follows = "common";
     };
     euler-haskell-common = {
-      url = "github:juspay/euler-haskell-common/79eb7b0802730acdeb42cb2baefb77a6eb34ce62";
+      url = "github:juspay/euler-haskell-common";
       inputs.common.follows = "common";
     };
     haskell-sequelize = {
-      url = "github:juspay/haskell-sequelize/3a9fa29baee3040175efc0caa1a61cb91b6d1ad4";
+      url = "github:juspay/haskell-sequelize";
       inputs.common.follows = "common";
     };
 

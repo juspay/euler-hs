@@ -278,17 +278,16 @@
         "word24": "word24"
       },
       "locked": {
-        "lastModified": 1742399694,
-        "narHash": "sha256-OnoVzDrvKnAt4wdmCo1I8jbsVeoKtlY8CDhvM4vn608=",
+        "lastModified": 1742497576,
+        "narHash": "sha256-uPTxd9Q3i7aEEypi5taZX3AzneGygn0Wd+ykeBjkn7I=",
         "owner": "juspay",
         "repo": "nix-common",
-        "rev": "98c6ae8b431b1008fc41ff20fc1cb64037e4ef5b",
+        "rev": "e4d53f08a5fb4e698368cf246d3960e6d2309ba4",
         "type": "github"
       },
       "original": {
         "owner": "juspay",
         "repo": "nix-common",
-        "rev": "98c6ae8b431b1008fc41ff20fc1cb64037e4ef5b",
         "type": "github"
       }
     },
@@ -348,7 +347,6 @@
       "original": {
         "owner": "juspay",
         "repo": "euler-events-hs",
-        "rev": "f05689a61e7ee6428703f9a8272b55e56aba6b99",
         "type": "github"
       }
     },
@@ -369,7 +367,6 @@
       "original": {
         "owner": "juspay",
         "repo": "euler-haskell-common",
-        "rev": "79eb7b0802730acdeb42cb2baefb77a6eb34ce62",
         "type": "github"
       }
     },
@@ -788,7 +785,6 @@
       "original": {
         "owner": "juspay",
         "repo": "haskell-sequelize",
-        "rev": "3a9fa29baee3040175efc0caa1a61cb91b6d1ad4",
         "type": "github"
       }
     },
